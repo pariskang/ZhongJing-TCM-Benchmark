@@ -1,0 +1,92 @@
+# ZhongJing-TCM benchmark — global pipeline configuration.
+# All relative paths are resolved against the repository root (see src/config.py).
+
+paths:
+  raw_dir: data/raw
+  interim_dir: data/interim
+  final_dir: data/final
+  results_dir: results
+  topic_model_dir: data/interim/topic_model
+  cache_dir: .cache/llm
+
+lexicons:
+  tcm_terms: lexicons/tcm_terms.txt
+  stopwords: lexicons/stopwords_zh.txt
+  category_anchors: lexicons/category_anchors.yaml
+
+prompts:
+  gen_question: prompts/gen_question.v3.txt
+  stager_eval: prompts/stager_eval.txt
+  judge_quality: prompts/judge_quality.txt
+  judge_validity: prompts/judge_validity.txt
+
+# ---- M1 ingest -------------------------------------------------------------
+ingest:
+  min_chars: 100          # drop articles shorter than this after cleaning
+  dedup_threshold: 0.85   # MinHash LSH Jaccard threshold for de-duplication
+  minhash_perm: 128
+
+# ---- M2 quality gate -------------------------------------------------------
+quality:
+  min_chars: 300
+  min_tcm_density: 0.04   # share of tokens that are TCM terms
+  max_ad_hits: 8          # promotional-term occurrences before an article is dropped
+  overall_threshold: 6.0  # mean of the three LLM dimensions to pass the gate
+  judge_model: gpt-4o
+
+# ---- M3 topic modelling ----------------------------------------------------
+topic:
+  embedding_model: BAAI/bge-large-zh-v1.5
+  max_len: 400            # max chars per passage before sliding-window split
+  overlap: 80
+  min_passage_len: 50
+  min_cluster_size: 15    # HDBSCAN
+  umap_components: 5       # reduce-then-cluster dimensionality
+  umap_neighbors: 15
+  nr_topics: 175          # target topic count (paper scale); null = auto
+  reduce_outliers: true
+  random_state: 42
+
+# ---- M5 generation ---------------------------------------------------------
+generate:
+  model: gpt-4o
+  max_passage_chars: 1500
+  prompt_version: v3
+
+# ---- M6 DTQF dynamic filtering --------------------------------------------
+dtqf:
+  sample_size: 100        # S — per-iteration review budget
+  max_iter: 20
+  qualify_threshold: 0.95 # stop once P_qualified exceeds this
+  kappa_threshold: 0.8    # min inter-annotator agreement (Cohen's kappa)
+  use_llm_judge: false    # set true to enable the optional LLM validity check
+  min_stem_chars: 15
+  min_explanation_chars: 20
+  w2v:
+    vector_size: 200
+    window: 5
+    min_count: 2
+
+# ---- M7 assemble -----------------------------------------------------------
+assemble:
+  diagnostic_frac: 0.10   # stratified 10% diagnostic split
+  token_encoding: cl100k_base
+
+# ---- M8 evaluate -----------------------------------------------------------
+evaluate:
+  n_runs: 3               # repeated runs per question (majority vote)
+  models:
+    - gpt-4o
+
+# ---- M9 statistics ---------------------------------------------------------
+stats:
+  num_segments: 2         # DP token-segmentation pieces per model
+
+# ---- LLM client ------------------------------------------------------------
+llm:
+  provider: openai        # openai | mock
+  temperature: 0.2
+  max_tokens: 1024
+  timeout: 60
+  max_concurrency: 4
+  use_cache: true

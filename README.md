@@ -19,21 +19,31 @@ ZhongJing-TCM is a pioneering dataset designed to evaluate Large Language Models
 - **Expert Validation**: Verified by multi TCM experts
 - **High-Quality Data**: Generated using innovative three-stage synthetic data generation strategy
 
-## Dataset Structure
+## Repository Structure
+
+This repository contains the full **data-synthesis & evaluation pipeline** that
+produces the benchmark from raw articles — see [`docs/PIPELINE.md`](docs/PIPELINE.md).
 
 ```
 ZhongJing-TCM-Benchmark/
-├── data/
-│   ├── train/
-│   ├── validation/
-│   └── test/
-├── metadata/
-│   ├── categories.json
-│   └── topics.json
-└── evaluation/
-    ├── metrics/
-    └── baselines/
+├── configs/pipeline.yaml      # models, thresholds, paths
+├── data/{raw,interim,final}/  # inputs → stage artefacts → released dataset
+├── lexicons/                  # TCM term dict, stopwords, 9-category anchors
+├── prompts/                   # versioned generation / judge / STAGER prompts
+├── src/
+│   ├── m1_ingest.py  m2_quality.py  m3_topic.py  m4_label.py
+│   ├── m5_generate.py  m6_dtqf.py   m7_assemble.py
+│   ├── m8_evaluate.py  m9_stats.py
+│   ├── schemas.py  llm_client.py  config.py  utils.py
+├── tests/                     # pytest suite (offline, mock LLM)
+├── run.py                     # CLI orchestration (typer)
+└── Makefile
 ```
+
+The pipeline maps 1:1 to the paper: BERTopic (Eq. 1–3), 9-category labelling
+(Eq. 4), the **DTQF** dynamic question filter (Eq. 5–9), and the
+dynamic-programming token segmentation (Algorithm 1). See the formula↔code index
+in [`docs/PIPELINE.md`](docs/PIPELINE.md).
 
 ## Categories
 
@@ -51,19 +61,35 @@ The dataset covers 9 major TCM domains:
 
 ## Usage
 
-```python
-from zhongjing_tcm import TCMDataset
+### Run the pipeline
 
-# Load the dataset
-dataset = TCMDataset(split='train')
+```bash
+make install                            # dependencies (see requirements.txt)
+make test                               # 54 unit tests, fully offline
+ZHONGJING_LLM_PROVIDER=mock make demo   # run M1→M7 with the offline mock LLM
 
-# Get a sample question
-question = dataset[0]
-print(question.text)
-print(question.options)
-print(question.answer)
-print(question.explanation)
+# real generation / evaluation
+export OPENAI_API_KEY=sk-...            # any OpenAI-compatible endpoint works
+python run.py pipeline                  # M1..M7
+python run.py evaluate --model gpt-4o   # M8
+python run.py stats                     # M9 (ANOVA, regression, DP segmentation)
 ```
+
+### Load the generated questions
+
+```python
+import json
+
+with open("data/final/zhongjing_tcm_full.jsonl", encoding="utf-8") as fh:
+    questions = [json.loads(line) for line in fh]
+
+q = questions[0]
+print(q["stem"], q["options"], q["answer"], q["explanation"])
+```
+
+Each record follows the `Question` schema in [`src/schemas.py`](src/schemas.py)
+(`single_choice` / `multiple_response` / `short_answer` × `basic` /
+`intermediate` / `advanced`, with per-span token counts and a `qc_passed` flag).
 
 ## Contributing
 
