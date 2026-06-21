@@ -112,6 +112,10 @@ def run(cfg: Optional[Config] = None, llm_judge: bool = True) -> list[Article]:
     kept = sum(a.quality_passed for a in articles)
     _log.info("quality gate: %d/%d articles passed", kept, len(articles))
     save_jsonl(articles, interim / "articles_scored.jsonl")
+    try:
+        plot_account_radar(articles, cfg)
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("Figure 3 (radar) skipped: %s", exc)
     return articles
 
 
@@ -132,6 +136,50 @@ def account_radar(articles: list[Article]):
     if not rows:
         return pd.DataFrame(columns=["professionalism", "popularization", "practicality"])
     return pd.DataFrame(rows).groupby("account").mean(numeric_only=True)
+
+
+def plot_account_radar(articles: list[Article], cfg: Optional[Config] = None):
+    """Figure 3 — Polar radar chart of the three quality dimensions per account."""
+    import math
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from utils import ensure_parent
+
+    cfg = cfg or load_config()
+    df = account_radar(articles)
+    if df.empty:
+        _log.warning("no quality scores to plot (Figure 3 skipped)")
+        return None
+
+    dims = ["professionalism", "popularization", "practicality"]
+    labels = ["专业性", "科普性", "实用性"]
+    n = len(dims)
+    angles = np.linspace(0, 2 * math.pi, n, endpoint=False).tolist()
+    angles += angles[:1]  # close the polygon
+
+    fig, ax = plt.subplots(subplot_kw={"projection": "polar"}, figsize=(7, 7))
+    for account, row in df.iterrows():
+        vals = [row[d] for d in dims] + [row[dims[0]]]
+        ax.plot(angles, vals, label=str(account), linewidth=1.5, marker="o", markersize=4)
+        ax.fill(angles, vals, alpha=0.08)
+
+    ax.set_xticks(angles[:-1])
+    ax.set_xticklabels(labels, fontsize=11)
+    ax.set_ylim(0, 10)
+    ax.set_title("账号质量雷达图 (Figure 3)", pad=15)
+    ax.legend(loc="upper right", bbox_to_anchor=(1.35, 1.1), fontsize=8)
+
+    out = ensure_parent(cfg.path("paths.results_dir") / "figures" / "figure3_account_radar.png")
+    fig.tight_layout()
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    _log.info("wrote %s", out)
+    return out
 
 
 if __name__ == "__main__":

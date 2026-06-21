@@ -28,15 +28,22 @@ REFUSAL_PAT = re.compile(
 
 
 class ModelEvaluator:
-    """Evaluate a single model over a dataset of choice questions."""
+    """Evaluate a single model over a dataset of questions (choice + short-answer)."""
 
     def __init__(self, model_name: str, cfg: Optional[Config] = None):
         self.model = model_name
         self.cfg = cfg or load_config()
         self.n_runs = self.cfg.get("evaluate.n_runs", 3)
         self.tmpl = resolve_path(self.cfg.get("prompts.stager_eval")).read_text(encoding="utf-8")
+        self._sa_tmpl: Optional[str] = self._load_sa_tmpl()
 
-    # -- prompt / parse ------------------------------------------------------ #
+    def _load_sa_tmpl(self) -> Optional[str]:
+        try:
+            return resolve_path(self.cfg.get("prompts.judge_short_answer")).read_text(encoding="utf-8")
+        except Exception:
+            return None
+
+    # -- prompt / parse (choice) --------------------------------------------- #
     def build_prompt(self, q: Question) -> str:
         opts = "\n".join(f"{k}. {v}" for k, v in q.options.items())
         return self.tmpl.format(question=f"{q.stem}\n{opts}")
@@ -48,7 +55,7 @@ class ModelEvaluator:
         pred = re.findall(r"[A-D]", m.group(1)) if m else []
         return {"refused": not pred, "pred": sorted(set(pred))}
 
-    # -- single question ----------------------------------------------------- #
+    # -- single choice question ---------------------------------------------- #
     def eval_one(self, q: Question) -> EvalRecord:
         raws = [call_text(self.build_prompt(q), self.model) for _ in range(self.n_runs)]
         runs = [self.parse(r) for r in raws]
@@ -73,14 +80,68 @@ class ModelEvaluator:
             raw_output=raws[0] if raws else None,
         )
 
+    # -- short-answer question ----------------------------------------------- #
+    def eval_one_short_answer(self, q: Question) -> Optional[EvalRecord]:
+        """LLM semantic matching for short-answer questions.
+
+        Generates the model's open-ended response, then uses a judge prompt to
+        compare it against ``q.reference_answer``.  Returns ``None`` when no
+        judge prompt is configured.
+        """
+        if self._sa_tmpl is None or not q.reference_answer:
+            return None
+        raws = [call_text(q.stem + "\n请简要作答。", self.model) for _ in range(self.n_runs)]
+        judge_model = self.cfg.get("evaluate.judge_model", self.model)
+        correct_votes: list[bool] = []
+        for raw in raws:
+            judge_prompt = self._sa_tmpl.format(
+                question=q.stem,
+                reference_answer=q.reference_answer,
+                student_answer=raw,
+            )
+            try:
+                from llm_client import call_json as _cj
+
+                result = _cj(judge_prompt, model=judge_model)
+                correct_votes.append(bool(result.get("correct", False)))
+            except Exception:
+                correct_votes.append(False)
+        correct = sum(correct_votes) > len(correct_votes) // 2
+        out_tokens = [_encode_len(r) for r in raws]
+        return EvalRecord(
+            question_id=q.question_id,
+            model=self.model,
+            category=q.category,
+            difficulty=q.difficulty,
+            type=q.type,
+            gold=[q.reference_answer],
+            pred=[raws[0]] if raws else [],
+            refused=False,
+            correct=correct,
+            answer_tokens=round(sum(out_tokens) / len(out_tokens)) if out_tokens else 0,
+            output_tokens=max(out_tokens) if out_tokens else 0,
+            raw_output=raws[0] if raws else None,
+        )
+
     # -- whole dataset ------------------------------------------------------- #
     def evaluate(self, dataset: list[Question]) -> tuple[dict, list[EvalRecord]]:
         from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
-        rows = [self.eval_one(q) for q in dataset if q.type != "short_answer"]
+        rows: list[EvalRecord] = []
+        for q in dataset:
+            if q.type == "short_answer":
+                rec = self.eval_one_short_answer(q)
+                if rec is not None:
+                    rows.append(rec)
+            else:
+                rows.append(self.eval_one(q))
+
         if not rows:
             return {"model": self.model, "n": 0}, rows
-        scored = [r for r in rows if not r.refused]  # refusals excluded from Acc/P/R/F1
+
+        # Choice-question Acc/P/R/F1 (exclude short_answer from sklearn metrics).
+        choice_rows = [r for r in rows if r.type != "short_answer"]
+        scored = [r for r in choice_rows if not r.refused]
         if scored:
             y_true = [",".join(r.gold) for r in scored]
             y_pred = [",".join(r.pred) for r in scored]
@@ -90,8 +151,13 @@ class ModelEvaluator:
             )
         else:
             acc = p = r = f1 = 0.0
-        refusal_rate = sum(x.refused for x in rows) / len(rows)
-        metrics = dict(
+
+        sa_rows = [r for r in rows if r.type == "short_answer"]
+        sa_acc = sum(r.correct for r in sa_rows) / len(sa_rows) if sa_rows else None
+        refusal_rate = (
+            sum(x.refused for x in choice_rows) / len(choice_rows) if choice_rows else 0.0
+        )
+        metrics: dict = dict(
             model=self.model,
             n=len(rows),
             accuracy=round(acc, 4),
@@ -100,6 +166,8 @@ class ModelEvaluator:
             f1=round(f1, 4),
             refusal_rate=round(refusal_rate, 4),
         )
+        if sa_acc is not None:
+            metrics["short_answer_accuracy"] = round(sa_acc, 4)
         return metrics, rows
 
 

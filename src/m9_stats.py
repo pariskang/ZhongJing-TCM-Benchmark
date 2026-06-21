@@ -244,6 +244,11 @@ def run(cfg: Optional[Config] = None) -> dict:
     except Exception as exc:  # noqa: BLE001
         _log.warning("token-range figure skipped: %s", exc)
 
+    try:
+        plot_regression_curves(df, cfg)
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("regression-curves figure skipped: %s", exc)
+
     return {"anova": str(results / "anova.csv"), "segments": segments, "regression": reg}
 
 
@@ -265,6 +270,49 @@ def plot_token_range_performance(df, cfg: Optional[Config] = None):
     ax.set_title("Token-range performance")
     ax.legend()
     out = ensure_parent(cfg.path("paths.results_dir") / "figures" / "token_range_performance.png")
+    fig.tight_layout()
+    fig.savefig(out, dpi=150)
+    plt.close(fig)
+    _log.info("wrote %s", out)
+    return out
+
+
+def plot_regression_curves(df, cfg: Optional[Config] = None):
+    """Accuracy-vs-token-length regression curves per model (linear/poly2/poly3/log)."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+    from sklearn.linear_model import LinearRegression
+    from sklearn.preprocessing import PolynomialFeatures
+
+    cfg = cfg or load_config()
+    models = list(df["model"].unique())
+    if not models:
+        return None
+    fig, axes = plt.subplots(1, len(models), figsize=(6 * len(models), 5), squeeze=False)
+    for ax, model in zip(axes[0], models):
+        g = df[df["model"] == model]
+        centers, accs = accuracy_by_token_bin(g["tokens"].to_numpy(float), g["correct"].to_numpy(float))
+        if len(centers) < 2:
+            continue
+        ax.scatter(centers, accs, color="black", s=30, zorder=3, label="data", alpha=0.8)
+        x_fit = np.linspace(centers.min(), centers.max(), 200).reshape(-1, 1)
+        for name, deg in [("linear", 1), ("poly2", 2), ("poly3", 3)]:
+            Xp = PolynomialFeatures(deg).fit_transform(centers.reshape(-1, 1))
+            m_reg = LinearRegression().fit(Xp, accs)
+            Xf = PolynomialFeatures(deg).fit_transform(x_fit)
+            ax.plot(x_fit.ravel(), m_reg.predict(Xf), label=name)
+        xl = np.log(centers.reshape(-1, 1) + 1)
+        m_reg = LinearRegression().fit(xl, accs)
+        xfl = np.log(x_fit + 1)
+        ax.plot(x_fit.ravel(), m_reg.predict(xfl), label="log", linestyle="--")
+        ax.set_xlabel("Question token length")
+        ax.set_ylabel("Accuracy")
+        ax.set_title(str(model))
+        ax.legend(fontsize=8)
+    out = ensure_parent(cfg.path("paths.results_dir") / "figures" / "regression_curves.png")
     fig.tight_layout()
     fig.savefig(out, dpi=150)
     plt.close(fig)

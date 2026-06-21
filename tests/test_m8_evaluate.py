@@ -43,3 +43,34 @@ def test_evaluate_metrics(make_q):
     assert 0.0 <= metrics["accuracy"] <= 1.0
     assert metrics["accuracy"] == 0.5  # 3 single (correct) / 3 multi (wrong)
     assert metrics["refusal_rate"] == 0.0
+    assert "short_answer_accuracy" not in metrics  # no SA questions in this batch
+
+
+def test_eval_one_short_answer(make_q):
+    ev = _ev()
+    sa_q = make_q(type="short_answer", reference_answer="柴胡，疏解少阳，透邪外出。")
+    rec = ev.eval_one_short_answer(sa_q)
+    assert rec is not None
+    assert rec.type == "short_answer"
+    assert rec.correct is True   # mock judge always returns correct=True
+    assert rec.output_tokens > 0
+
+
+def test_evaluate_includes_short_answer(make_q):
+    sa = make_q(type="short_answer", reference_answer="柴胡，疏解少阳，透邪外出。")
+    choice = make_q(answer=["A"])
+    metrics, rows = _ev().evaluate([sa, choice])
+    assert metrics["n"] == 2
+    assert "short_answer_accuracy" in metrics
+    assert metrics["short_answer_accuracy"] == 1.0  # mock judge correct=True
+    sa_recs = [r for r in rows if r.type == "short_answer"]
+    assert len(sa_recs) == 1
+
+
+def test_eval_short_answer_without_reference(make_q):
+    ev = _ev()
+    sa_q = make_q(type="short_answer")
+    sa_q.reference_answer = None  # override the fixture default
+    # No reference_answer → eval_one_short_answer returns None (skipped).
+    rec = ev.eval_one_short_answer(sa_q)
+    assert rec is None

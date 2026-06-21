@@ -1,4 +1,5 @@
 """Tests for M5 question generation (mock provider)."""
+import asyncio
 import uuid
 
 from m5_generate import generate_for_passage
@@ -32,3 +33,15 @@ def test_skips_unlabelled_passage():
     p = _passage()
     p.category = None
     assert generate_for_passage(p, model="mock") == []
+
+
+def test_async_generation_two_passages():
+    from llm_client import map_async
+
+    async def _run():
+        results = await map_async([_passage(), _passage()], generate_for_passage, max_concurrency=2)
+        return results
+
+    results = asyncio.run(_run())
+    assert len(results) == 2
+    assert all(len(qs) == 9 for qs in results)

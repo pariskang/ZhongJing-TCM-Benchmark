@@ -19,6 +19,7 @@ prompts:
   stager_eval: prompts/stager_eval.txt
   judge_quality: prompts/judge_quality.txt
   judge_validity: prompts/judge_validity.txt
+  judge_short_answer: prompts/judge_short_answer.txt
 
 # ---- M1 ingest -------------------------------------------------------------
 ingest:

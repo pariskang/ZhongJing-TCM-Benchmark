@@ -90,7 +90,15 @@ def generate_for_passage(passage: Passage, model: str = "gpt-4o",
 
 
 def run(cfg: Optional[Config] = None, limit: Optional[int] = None) -> list[Question]:
-    """Generate questions for every labelled passage → ``interim/questions_raw.jsonl``."""
+    """Generate questions for every labelled passage → ``interim/questions_raw.jsonl``.
+
+    Uses :func:`llm_client.map_async` for bounded-concurrency parallel generation
+    (``llm.max_concurrency`` passages in flight simultaneously).
+    """
+    import asyncio
+
+    from llm_client import map_async
+
     cfg = cfg or load_config()
     interim = cfg.path("paths.interim_dir")
     passages = load_jsonl_as(interim / "passages_labeled.jsonl", Passage)
@@ -100,11 +108,16 @@ def run(cfg: Optional[Config] = None, limit: Optional[int] = None) -> list[Quest
 
     model = cfg.get("generate.model", "gpt-4o")
     max_chars = cfg.get("generate.max_passage_chars", 1500)
-    questions: list[Question] = []
-    for i, p in enumerate(passages, 1):
-        questions.extend(generate_for_passage(p, model=model, max_chars=max_chars))
-        if i % 25 == 0:
-            _log.info("generated for %d/%d passages (%d questions)", i, len(passages), len(questions))
+    concurrency = cfg.get("llm.max_concurrency", 4)
+
+    def _gen(p: Passage) -> list[Question]:
+        return generate_for_passage(p, model=model, max_chars=max_chars)
+
+    async def _run_all() -> list[Question]:
+        results = await map_async(passages, _gen, max_concurrency=concurrency)
+        return [q for qs in results for q in qs]
+
+    questions = asyncio.run(_run_all())
 
     _log.info("generated %d raw questions from %d passages", len(questions), len(passages))
     save_jsonl(questions, interim / "questions_raw.jsonl")

@@ -394,7 +394,14 @@ def mock_completion(prompt: str, model: str = "mock") -> str:
             ensure_ascii=False,
         )
 
-    # 4) Generic yes/no validity judge -> default to valid.
+    # 4) Short-answer semantic judge: reference_answer + student_answer present.
+    if "学生答案" in p and "参考答案" in p:
+        return json.dumps(
+            {"correct": True, "score": 0.9, "reason": "（mock）语义一致，核心要点覆盖。"},
+            ensure_ascii=False,
+        )
+
+    # 5) Generic yes/no validity judge -> default to valid.
     if "仅输出" in p and ("true" in p.lower() or "valid" in p.lower()):
         return json.dumps({"valid": True, "reason": "（mock）"}, ensure_ascii=False)
 
