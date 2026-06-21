@@ -46,6 +46,13 @@ The pipeline maps 1:1 to the paper: BERTopic (Eq. 1–3), 9-category labelling
 dynamic-programming token segmentation (Algorithm 1). See the formula↔code index
 in [`docs/PIPELINE.md`](docs/PIPELINE.md).
 
+The benchmark's evaluation standard — the POMDP view, the T0–T6 fidelity ladder
+and the four orthogonal scoring layers (result / process / safety / interaction),
+with each requirement mapped to a module and an implemented/planned status — is in
+[`docs/CLINICAL_EVAL_FRAMEWORK.md`](docs/CLINICAL_EVAL_FRAMEWORK.md). The v5
+generation prompt already enforces complete disease-course case stems and
+hard-to-separate options from that standard.
+
 ## Categories
 
 The dataset covers 9 major TCM domains:

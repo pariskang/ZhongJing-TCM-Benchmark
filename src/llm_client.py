@@ -39,11 +39,45 @@ _log = get_logger("llm_client")
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 
 
+def _parse_one(cand: str):
+    """Try strict JSON then a Python-literal parse; return a dict or ``None``."""
+    if not cand:
+        return None
+    try:
+        return json.loads(cand)
+    except Exception:
+        try:
+            obj = ast.literal_eval(cand)
+            return obj if isinstance(obj, dict) else None
+        except Exception:
+            return None
+
+
+def _repair_json(cand: str):
+    """Repair malformed JSON with the optional ``json-repair`` lib (else ``None``).
+
+    Handles the usual LLM JSON breakage — trailing commas, unquoted keys,
+    truncated/missing braces, smart quotes, stray prose — that the strict parsers
+    above reject.
+    """
+    if not cand:
+        return None
+    try:
+        from json_repair import repair_json  # type: ignore
+
+        obj = repair_json(cand, return_objects=True)
+        return obj if isinstance(obj, dict) else None
+    except Exception:  # pragma: no cover - optional dep / unrepairable
+        return None
+
+
 def extract_json(text: str) -> dict:
     """Best-effort parse of a JSON object out of an LLM response.
 
-    Handles ```json fences, leading/trailing prose and single-quoted dicts.
-    Raises ``ValueError`` if nothing parseable is found.
+    Tries, in order: ```json fences, the greedy outermost ``{...}`` span, and the
+    whole string — first with strict JSON / Python-literal parsing, then with the
+    ``json-repair`` library as a last resort.  Raises ``ValueError`` if nothing
+    parseable is found.
     """
     if text is None:
         raise ValueError("empty LLM response")
@@ -58,15 +92,15 @@ def extract_json(text: str) -> dict:
     candidates.append(text.strip())
 
     for cand in candidates:
-        try:
-            return json.loads(cand)
-        except Exception:
-            try:
-                obj = ast.literal_eval(cand)
-                if isinstance(obj, dict):
-                    return obj
-            except Exception:
-                continue
+        obj = _parse_one(cand)
+        if obj is not None:
+            return obj
+
+    # Last resort: repair the most JSON-like candidate(s).
+    for cand in candidates:
+        obj = _repair_json(cand)
+        if obj is not None:
+            return obj
     raise ValueError(f"Could not extract JSON from response: {text[:200]!r}")
 
 

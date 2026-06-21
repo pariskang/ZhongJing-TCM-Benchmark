@@ -108,7 +108,12 @@ ZHONGJING_LLM_PROVIDER=minimax python run.py generate --resume
   file can't be downloaded.
 - **Human-in-the-loop.** M4 emits `topic_cards.csv` for physician review (drop a
   completed `topic_cards_reviewed.csv` back to override the auto labels). M5's
-  generation prompt is versioned (`prompts/CHANGELOG.md`).
+  generation prompt is versioned (`prompts/CHANGELOG.md`); the **v5** prompt
+  enforces complete disease-course case stems + hard-to-separate options per the
+  evaluation standard in [`CLINICAL_EVAL_FRAMEWORK.md`](CLINICAL_EVAL_FRAMEWORK.md).
+- **Robust JSON.** `llm_client.extract_json` parses fenced / prose / Python-literal
+  JSON and falls back to the `json-repair` library for truncated, unquoted-key or
+  smart-quote output before giving up.
 - **Leakage defence.** M1 de-duplicates near-identical reposts (MinHash/LSH);
   only **synthetic** questions are released — never the source articles
   (copyright + privacy, manual §10.4).

@@ -27,6 +27,7 @@ tenacity
 typer
 chardet
 datasketch
+json-repair
 
 # Document ingestion (M1: .docx / .html)
 python-docx

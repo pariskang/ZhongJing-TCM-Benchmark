@@ -19,6 +19,24 @@ def test_extract_json_with_prose():
     assert out["professionalism"] == 8
 
 
+def test_extract_json_trailing_comma_via_literal():
+    # ast.literal_eval already tolerates a trailing comma (no json-repair needed).
+    assert extract_json('{"a": 1, "b": 2,}') == {"a": 1, "b": 2}
+
+
+def test_extract_json_repair_truncated():
+    # Truncated/missing closing brace: only json-repair can recover it.
+    pytest.importorskip("json_repair")
+    out = extract_json('{"stem": "证属肝郁", "answer": ["A"]')  # no closing }
+    assert out["answer"] == ["A"]
+
+
+def test_extract_json_repair_unquoted_keys():
+    pytest.importorskip("json_repair")
+    out = extract_json("前缀 {stem: '气虚', answer: ['B']} 后缀")
+    assert out["answer"] == ["B"]
+
+
 def test_extract_json_failure():
     with pytest.raises(ValueError):
         extract_json("完全没有 JSON 的文本")
