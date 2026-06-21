@@ -93,7 +93,7 @@ llm:
   # to a MiniMax model name (e.g. MiniMax-M3).
   base_url: null          # optional endpoint override (else OPENAI_BASE_URL / MINIMAX_BASE_URL)
   temperature: 0.2
-  max_tokens: 1024
+  max_tokens: 8192        # output cap; large enough for long explanations / short-answers
   timeout: 60
   max_concurrency: 4      # parallel passages during M5 generation
   use_cache: true
