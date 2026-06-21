@@ -100,9 +100,11 @@ DEFAULT_CONFIG: dict = {
         "category_anchors": "lexicons/category_anchors.yaml",
     },
     "prompts": {
-        "gen_question": "prompts/gen_question.v3.txt",
+        "gen_question": "prompts/gen_question.v4.txt",
         "stager_eval": "prompts/stager_eval.txt",
         "judge_quality": "prompts/judge_quality.txt",
+        "judge_validity": "prompts/judge_validity.txt",
+        "judge_short_answer": "prompts/judge_short_answer.txt",
     },
     "ingest": {
         "min_chars": 100,

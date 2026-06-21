@@ -7,7 +7,23 @@ presentation), and the prompt is revised accordingly.
 
 ## gen_question
 
-### v3 (current)
+### v4 (current)
+- **Self-contained, complete stems.** The stem must be answerable from itself
+  alone (no "根据上文/源文本" references, no dangling premises); clinical/case
+  stems must spell out sex·age, chief complaint·duration, core symptoms, tongue
+  and pulse, plus relevant history — so the syndrome differentiation has a
+  sufficient *and unique* basis (kills the "信息不全 / multi-answer" failure mode).
+- **High-discrimination options.** Options must be homogeneous and parallel
+  (all syndromes, or all formulas, or all therapies/acupoints), similar length,
+  no "以上都对/都不对"; distractors are *near-miss* plausible errors drawn from
+  confusable syndromes / formulas / common clinical pitfalls, wrong only on
+  careful analysis, with no surface cues that give away the key.
+- Difficulty-matched stem construction (basic direct / intermediate reasoning
+  chain / advanced multi-step clinical scenario).
+- `explanation` must now justify *why each distractor is wrong*; short-answer
+  `reference_answer` must list complete, itemised scoring points.
+
+### v3
 - Added the explicit rule: *clinical questions must contain a complete patient
   symptom/sign description* — directly targets the DTQF completeness filter (M6).
 - Required strictly source-grounded answers (no outside knowledge).
