@@ -70,6 +70,21 @@ def save_jsonl(records: Iterable[Any], path: "str | Path") -> Path:
     return out
 
 
+def append_jsonl(records: Iterable[Any], path: "str | Path") -> Path:
+    """Append *records* to a JSONL file (creating it if needed).
+
+    Used by the resumable generation loop (M5) to checkpoint each passage's
+    questions as soon as they are produced, so a crashed/disconnected run can be
+    resumed without re-spending tokens.
+    """
+    out = ensure_parent(path)
+    with out.open("a", encoding="utf-8") as fh:
+        for rec in records:
+            fh.write(json.dumps(_to_dict(rec), ensure_ascii=False))
+            fh.write("\n")
+    return out
+
+
 def iter_jsonl(path: "str | Path") -> Iterator[dict]:
     """Lazily yield dict records from a JSONL file (skips blank lines)."""
     p = resolve_path(path)

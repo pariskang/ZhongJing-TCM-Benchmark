@@ -61,11 +61,18 @@ def label() -> None:
 
 
 @app.command()
-def generate(limit: int = typer.Option(0, help="Cap the number of passages (0 = all).")) -> None:
-    """M5 — LLM question generation (single/multiple/short × 3 difficulties)."""
+def generate(
+    limit: int = typer.Option(0, help="Cap the number of passages (0 = all)."),
+    resume: bool = typer.Option(True, help="Resume from existing questions_raw.jsonl."),
+    concurrency: int = typer.Option(0, help="Parallel passages in flight (0 = config)."),
+) -> None:
+    """M5 — LLM question generation (single/multiple/short × 3 difficulties).
+
+    Resumable & concurrent: re-run after a disconnect to fill only what's missing.
+    """
     import m5_generate
 
-    m5_generate.run(limit=limit or None)
+    m5_generate.run(limit=limit or None, resume=resume, concurrency=concurrency or None)
 
 
 @app.command()
@@ -119,7 +126,9 @@ def pipeline(limit: int = typer.Option(0, help="Cap passages for generation (0 =
     m2_quality.run()
     m3_topic.run()
     m4_label.run()
-    m5_generate.run(limit=limit or None)
+    # Fresh full run: regenerate from scratch (passage IDs are new each pipeline).
+    # Use `python run.py generate` for the resumable/incremental batch path.
+    m5_generate.run(limit=limit or None, resume=False)
     m6_dtqf.run()
     m7_assemble.run()
 

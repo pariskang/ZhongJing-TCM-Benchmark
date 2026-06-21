@@ -135,7 +135,8 @@ DEFAULT_CONFIG: dict = {
     "evaluate": {"n_runs": 3, "models": ["gpt-4o"]},
     "stats": {"num_segments": 2},
     "llm": {
-        "provider": "openai",
+        "provider": "openai",  # openai | minimax | mock
+        "base_url": None,
         "temperature": 0.2,
         "max_tokens": 1024,
         "timeout": 60,

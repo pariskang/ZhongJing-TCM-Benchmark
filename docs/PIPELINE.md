@@ -67,8 +67,36 @@ Shared infrastructure: `schemas.py` (pydantic records), `llm_client.py`
 | Termination | `P_qualified > 95%` | `m6_dtqf.dtqf_filter` (probe) |
 | Algorithm 1 | DP token segmentation | `m9_stats.optimal_segmentation` |
 
+## Batch generation on Colab (MiniMax)
+
+[`notebooks/colab_minimax_generation.ipynb`](../notebooks/colab_minimax_generation.ipynb)
+runs the whole pipeline on Colab against **MiniMax** (OpenAI-compatible endpoint,
+`MiniMax-M3`) with:
+
+- **Concurrency** — passages generated in parallel (`llm.max_concurrency`).
+- **Checkpoint / resume** — each passage's questions are appended to
+  `questions_raw.jsonl` the moment they finish; re-running fills only the
+  missing `(passage, type, difficulty)` triples, so a runtime disconnect costs
+  no tokens (mount Google Drive to persist the checkpoint across reconnects).
+- A **lightweight fallback** for M3/M4 (chunk + anchor-vote) so the notebook
+  runs without the heavy BERTopic stack.
+
+```bash
+export MINIMAX_API_KEY=...                 # OpenAI-compatible MiniMax key
+ZHONGJING_LLM_PROVIDER=minimax python run.py generate --concurrency 8
+# resume after an interruption (only missing items are regenerated):
+ZHONGJING_LLM_PROVIDER=minimax python run.py generate --resume
+```
+
 ## Design notes
 
+- **Provider-agnostic.** `ZHONGJING_LLM_PROVIDER` selects `openai` |
+  `minimax` | `mock`. MiniMax reuses the OpenAI SDK (same wire protocol); the
+  client auto-fills `https://api.minimaxi.com/v1` and reads `MINIMAX_API_KEY`.
+  Any other OpenAI-compatible host works via `OPENAI_BASE_URL`.
+- **Resumable, concurrent generation.** `m5_generate.run(resume=True)`
+  checkpoints per passage and skips completed `(passage, type, difficulty)`
+  triples; `python run.py generate` exposes `--resume` / `--concurrency`.
 - **Offline-first.** `ZHONGJING_LLM_PROVIDER=mock` makes every LLM call
   deterministic and free, so the whole pipeline and the test-suite run with no
   API key or network. The mock returns schema-valid questions / quality scores /

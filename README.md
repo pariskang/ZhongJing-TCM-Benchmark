@@ -75,6 +75,22 @@ python run.py evaluate --model gpt-4o   # M8
 python run.py stats                     # M9 (ANOVA, regression, DP segmentation)
 ```
 
+### Batch generation with MiniMax (concurrent + resumable)
+
+MiniMax's OpenAI-compatible endpoint is supported out of the box:
+
+```bash
+export MINIMAX_API_KEY=...                          # https://api.minimaxi.com/v1
+export ZHONGJING_LLM_PROVIDER=minimax
+python run.py generate --concurrency 8              # parallel question generation
+python run.py generate --resume                     # re-run to fill only missing items
+```
+
+For a one-click cloud run, open
+[`notebooks/colab_minimax_generation.ipynb`](notebooks/colab_minimax_generation.ipynb)
+in Google Colab — it drives the full M1→M9 pipeline with MiniMax concurrency and
+checkpoint/resume (persisted to Google Drive across runtime disconnects).
+
 ### Load the generated questions
 
 ```python

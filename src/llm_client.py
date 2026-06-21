@@ -6,9 +6,12 @@ one place (manual §10.3).
 
 Providers
 ---------
-* ``openai`` — the official OpenAI SDK; also works against any OpenAI-compatible
+* ``openai``  — the official OpenAI SDK; also works against any OpenAI-compatible
   endpoint (vLLM, Together, DeepSeek, …) via ``base_url``.
-* ``mock``  — fully offline, deterministic.  Returns schema-valid JSON for the
+* ``minimax`` — MiniMax's OpenAI-compatible endpoint
+  (``https://api.minimaxi.com/v1``).  Reuses the OpenAI SDK; reads the key from
+  ``MINIMAX_API_KEY`` and defaults the model to ``MiniMax-M3``.
+* ``mock``    — fully offline, deterministic.  Returns schema-valid JSON for the
   question-generation / quality-judge / STAGER prompts so the whole pipeline can
   be exercised (and unit-tested) without API keys or network.
 
@@ -135,9 +138,23 @@ class LLMClient:
         self.provider = (
             provider or os.environ.get("ZHONGJING_LLM_PROVIDER") or "openai"
         ).lower()
+        # MiniMax speaks the OpenAI wire protocol: default its endpoint, key env
+        # and model unless the caller overrode them explicitly.
+        if self.provider == "minimax":
+            self.base_url = (
+                base_url
+                or os.environ.get("MINIMAX_BASE_URL")
+                or "https://api.minimaxi.com/v1"
+            )
+            self.api_key_env = (
+                "MINIMAX_API_KEY" if api_key_env == "OPENAI_API_KEY" else api_key_env
+            )
+            if default_model == "gpt-4o":
+                default_model = os.environ.get("MINIMAX_MODEL", "MiniMax-M3")
+        else:
+            self.base_url = base_url or os.environ.get("OPENAI_BASE_URL")
+            self.api_key_env = api_key_env
         self.default_model = default_model
-        self.base_url = base_url or os.environ.get("OPENAI_BASE_URL")
-        self.api_key_env = api_key_env
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.timeout = timeout
@@ -188,7 +205,9 @@ class LLMClient:
 
         if provider == "mock":
             text = mock_completion(prompt, model)
-        elif provider == "openai":
+        elif provider in ("openai", "minimax"):
+            # MiniMax is OpenAI-compatible; base_url / api_key_env already point
+            # at the right endpoint (set in __init__).
             text = self._call_openai(prompt, model, system, temperature, max_tokens)
         else:
             raise ValueError(f"Unknown LLM provider: {provider!r}")
@@ -270,6 +289,7 @@ def get_client() -> LLMClient:
         provider = os.environ.get("ZHONGJING_LLM_PROVIDER") or llm.get("provider")
         _DEFAULT_CLIENT = LLMClient(
             provider=provider,
+            base_url=llm.get("base_url"),
             temperature=llm.get("temperature", 0.2),
             max_tokens=llm.get("max_tokens", 1024),
             timeout=llm.get("timeout", 60.0),

@@ -1,4 +1,4 @@
-"""M5 — LLM question generation (human-in-the-loop).
+"""M5 — LLM question generation (human-in-the-loop, resumable, concurrent).
 
 For every labelled passage, generate ``single_choice × multiple_response ×
 short_answer`` questions across ``basic / intermediate / advanced`` difficulty
@@ -7,6 +7,17 @@ short_answer`` questions across ``basic / intermediate / advanced`` difficulty
 The generation prompt is **versioned** (``prompts/gen_question.v3.txt``); see
 ``prompts/CHANGELOG.md`` for the physician-driven refinement history (§5.2).
 Cost control (cache / back-off / concurrency) lives in ``llm_client``.
+
+Batch features
+--------------
+* **Concurrency.** Passages are generated in parallel with a bounded
+  ``asyncio.Semaphore`` (``llm.max_concurrency``), so MiniMax / OpenAI calls
+  overlap instead of running one-at-a-time.
+* **Checkpoint / resume.** Each passage's questions are appended to
+  ``questions_raw.jsonl`` as soon as they finish.  Re-running with
+  ``resume=True`` (the default) reads which ``(passage, type, difficulty)``
+  triples already exist and regenerates only what's missing — a Colab runtime
+  disconnect costs nothing.
 """
 from __future__ import annotations
 
@@ -18,12 +29,20 @@ from typing import Optional
 from config import Config, load_config
 from llm_client import call_json
 from schemas import DIFFICULTIES, QUESTION_TYPES, Category, Passage, Question
-from utils import ensure_parent, get_logger, load_jsonl_as, resolve_path, save_jsonl
+from utils import (
+    append_jsonl,
+    ensure_parent,
+    get_logger,
+    iter_jsonl,
+    load_jsonl_as,
+    resolve_path,
+)
 
 _log = get_logger("m5_generate")
 
 QTYPES = list(QUESTION_TYPES)
 DIFFS = list(DIFFICULTIES)
+FULL_GRID: list[tuple[str, str]] = list(itertools.product(QTYPES, DIFFS))
 
 _FAILURE_LOG = "data/interim/generation_failures.jsonl"
 
@@ -71,15 +90,23 @@ def _coerce_question(data: dict, passage: Passage, qtype: str, diff: str) -> Que
     )
 
 
-def generate_for_passage(passage: Passage, model: str = "gpt-4o",
-                         max_chars: int = 1500) -> list[Question]:
-    """Generate the full 3×3 grid of questions for one labelled passage."""
+def generate_for_passage(
+    passage: Passage,
+    model: str = "gpt-4o",
+    max_chars: int = 1500,
+    combos: Optional[list[tuple[str, str]]] = None,
+) -> list[Question]:
+    """Generate questions for one labelled passage.
+
+    *combos* selects which ``(type, difficulty)`` pairs to produce; when ``None``
+    the full 3×3 grid is generated.  Resume passes only the missing pairs.
+    """
     if passage.category is None or passage.topic_id is None:
         return []
     cfg = load_config()
     tmpl = resolve_path(cfg.get("prompts.gen_question")).read_text(encoding="utf-8")
     out: list[Question] = []
-    for qtype, diff in itertools.product(QTYPES, DIFFS):
+    for qtype, diff in (combos if combos is not None else FULL_GRID):
         prompt = tmpl.format(qtype=qtype, difficulty=diff, passage_text=passage.text[:max_chars])
         try:
             data = call_json(prompt, model=model)
@@ -89,18 +116,61 @@ def generate_for_passage(passage: Passage, model: str = "gpt-4o",
     return out
 
 
-def run(cfg: Optional[Config] = None, limit: Optional[int] = None) -> list[Question]:
+def _done_combos(path) -> set[tuple[str, str, str]]:
+    """Read which ``(passage_id, type, difficulty)`` triples already exist."""
+    done: set[tuple[str, str, str]] = set()
+    p = resolve_path(path)
+    if not p.exists():
+        return done
+    for rec in iter_jsonl(p):
+        done.add((rec.get("source_passage_id"), rec.get("type"), rec.get("difficulty")))
+    return done
+
+
+async def _generate_all(work, model, max_chars, concurrency, out_path) -> int:
+    """Generate *work* (passage, missing-combos) pairs concurrently, checkpointing."""
+    import asyncio
+
+    sem = asyncio.Semaphore(max(1, concurrency))
+    write_lock = asyncio.Lock()
+    total_new = 0
+    done_passages = 0
+    total = len(work)
+
+    async def worker(passage: Passage, combos: list[tuple[str, str]]):
+        nonlocal total_new, done_passages
+        async with sem:
+            qs = await asyncio.to_thread(generate_for_passage, passage, model, max_chars, combos)
+        async with write_lock:                       # checkpoint as each passage lands
+            if qs:
+                append_jsonl(qs, out_path)
+                total_new += len(qs)
+            done_passages += 1
+            if done_passages % 25 == 0 or done_passages == total:
+                _log.info("progress: %d/%d passages (+%d questions)", done_passages, total, total_new)
+
+    await asyncio.gather(*[worker(p, c) for p, c in work])
+    return total_new
+
+
+def run(
+    cfg: Optional[Config] = None,
+    limit: Optional[int] = None,
+    resume: bool = True,
+    concurrency: Optional[int] = None,
+) -> list[Question]:
     """Generate questions for every labelled passage → ``interim/questions_raw.jsonl``.
 
-    Uses :func:`llm_client.map_async` for bounded-concurrency parallel generation
-    (``llm.max_concurrency`` passages in flight simultaneously).
+    Parallel (``llm.max_concurrency``) and resumable: with ``resume=True`` only
+    the missing ``(passage, type, difficulty)`` triples are generated and each
+    passage is checkpointed to disk the moment it completes.
     """
     import asyncio
 
-    from llm_client import map_async
-
     cfg = cfg or load_config()
     interim = cfg.path("paths.interim_dir")
+    out_path = ensure_parent(interim / "questions_raw.jsonl")
+
     passages = load_jsonl_as(interim / "passages_labeled.jsonl", Passage)
     passages = [p for p in passages if p.category is not None and p.topic_id is not None]
     if limit:
@@ -108,19 +178,34 @@ def run(cfg: Optional[Config] = None, limit: Optional[int] = None) -> list[Quest
 
     model = cfg.get("generate.model", "gpt-4o")
     max_chars = cfg.get("generate.max_passage_chars", 1500)
-    concurrency = cfg.get("llm.max_concurrency", 4)
+    concurrency = concurrency or cfg.get("llm.max_concurrency", 4)
 
-    def _gen(p: Passage) -> list[Question]:
-        return generate_for_passage(p, model=model, max_chars=max_chars)
+    if resume and out_path.exists():
+        done = _done_combos(out_path)
+        _log.info("resume: %d (passage,type,difficulty) triples already on disk", len(done))
+    else:
+        done = set()
+        if out_path.exists():
+            out_path.unlink()                        # fresh start
 
-    async def _run_all() -> list[Question]:
-        results = await map_async(passages, _gen, max_concurrency=concurrency)
-        return [q for qs in results for q in qs]
+    work = []
+    for p in passages:
+        missing = [(t, d) for (t, d) in FULL_GRID if (p.passage_id, t, d) not in done]
+        if missing:
+            work.append((p, missing))
 
-    questions = asyncio.run(_run_all())
+    if not work:
+        _log.info("nothing to generate — all %d passages complete", len(passages))
+        return load_jsonl_as(out_path, Question) if out_path.exists() else []
 
-    _log.info("generated %d raw questions from %d passages", len(questions), len(passages))
-    save_jsonl(questions, interim / "questions_raw.jsonl")
+    _log.info(
+        "generating %d passages (%d triples) with concurrency=%d, model=%s",
+        len(work), sum(len(c) for _, c in work), concurrency, model,
+    )
+    new_count = asyncio.run(_generate_all(work, model, max_chars, concurrency, out_path))
+
+    questions = load_jsonl_as(out_path, Question)
+    _log.info("generated %d new questions; %d total in %s", new_count, len(questions), out_path.name)
     return questions
 
 

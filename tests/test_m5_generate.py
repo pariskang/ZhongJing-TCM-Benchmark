@@ -2,8 +2,10 @@
 import asyncio
 import uuid
 
-from m5_generate import generate_for_passage
+from config import Config
+from m5_generate import FULL_GRID, _done_combos, generate_for_passage
 from schemas import Category, Passage
+from utils import save_jsonl
 
 
 def _passage():
@@ -45,3 +47,62 @@ def test_async_generation_two_passages():
     results = asyncio.run(_run())
     assert len(results) == 2
     assert all(len(qs) == 9 for qs in results)
+
+
+def test_generate_subset_of_combos():
+    combos = [("single_choice", "basic"), ("short_answer", "advanced")]
+    qs = generate_for_passage(_passage(), model="mock", combos=combos)
+    assert len(qs) == 2
+    assert {(q.type, q.difficulty) for q in qs} == set(combos)
+
+
+def _cfg(tmp_path, concurrency=4):
+    return Config(
+        {
+            "paths": {"interim_dir": str(tmp_path)},
+            "generate": {"model": "mock", "max_passage_chars": 1500},
+            "llm": {"max_concurrency": concurrency},
+        }
+    )
+
+
+def test_run_writes_full_grid(tmp_path):
+    import m5_generate
+
+    save_jsonl([_passage(), _passage()], tmp_path / "passages_labeled.jsonl")
+    qs = m5_generate.run(cfg=_cfg(tmp_path), resume=False)
+    assert len(qs) == 18  # 2 passages × 9
+    assert (tmp_path / "questions_raw.jsonl").exists()
+
+
+def test_run_resume_skips_completed(tmp_path):
+    import m5_generate
+
+    save_jsonl([_passage(), _passage()], tmp_path / "passages_labeled.jsonl")
+    cfg = _cfg(tmp_path)
+    m5_generate.run(cfg=cfg, resume=False)
+    out = tmp_path / "questions_raw.jsonl"
+
+    # Second run with resume=True → nothing new, count unchanged.
+    qs2 = m5_generate.run(cfg=cfg, resume=True)
+    assert len(qs2) == 18
+
+
+def test_run_resume_regenerates_missing(tmp_path):
+    import m5_generate
+
+    save_jsonl([_passage(), _passage()], tmp_path / "passages_labeled.jsonl")
+    cfg = _cfg(tmp_path)
+    m5_generate.run(cfg=cfg, resume=False)
+    out = tmp_path / "questions_raw.jsonl"
+
+    # Simulate a crash: keep only the first 10 of 18 lines.
+    lines = out.read_text(encoding="utf-8").splitlines()
+    out.write_text("\n".join(lines[:10]) + "\n", encoding="utf-8")
+    assert len(_done_combos(out)) <= 10
+
+    qs3 = m5_generate.run(cfg=cfg, resume=True)
+    assert len(qs3) == 18  # the missing triples were regenerated
+    # every (passage, type, difficulty) triple present exactly once
+    triples = _done_combos(out)
+    assert len(triples) == 18

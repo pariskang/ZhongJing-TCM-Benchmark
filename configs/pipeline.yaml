@@ -85,9 +85,14 @@ stats:
 
 # ---- LLM client ------------------------------------------------------------
 llm:
-  provider: openai        # openai | mock
+  provider: openai        # openai | minimax | mock
+  # MiniMax: set provider: minimax (OpenAI-compatible). The client reads
+  # MINIMAX_API_KEY and defaults base_url to https://api.minimaxi.com/v1.
+  # Remember to also set generate.model / quality.judge_model / evaluate.models
+  # to a MiniMax model name (e.g. MiniMax-M3).
+  base_url: null          # optional endpoint override (else OPENAI_BASE_URL / MINIMAX_BASE_URL)
   temperature: 0.2
   max_tokens: 1024
   timeout: 60
-  max_concurrency: 4
+  max_concurrency: 4      # parallel passages during M5 generation
   use_cache: true
