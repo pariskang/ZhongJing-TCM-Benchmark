@@ -1,0 +1,37 @@
+# Core NLP / topic modelling
+sentence-transformers>=3.0
+bertopic>=0.16
+umap-learn
+hdbscan
+jieba
+opencc-python-reimplemented
+gensim>=4.3
+
+# ML / statistics
+scikit-learn
+statsmodels
+scipy
+numpy
+pandas
+
+# Tokenisation / LLM access
+tiktoken
+openai
+
+# Data / schema / orchestration
+datasets
+pydantic>=2
+pyyaml
+diskcache
+tenacity
+typer
+chardet
+datasketch
+
+# Visualisation
+matplotlib
+seaborn
+plotly
+
+# Testing
+pytest

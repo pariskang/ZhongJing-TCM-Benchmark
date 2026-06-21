@@ -1,0 +1,7 @@
+你是资深中医专家评审。请从三个维度对下文进行 0-10 打分:
+- 专业性(Professionalism): 中医理论准确、术语规范、逻辑自洽
+- 科普性(Popularization): 表达清晰、对学习者友好
+- 实用性(Practicality): 贴近临床/可指导实践
+仅输出 JSON: {{"professionalism": x, "popularization": x, "practicality": x, "reason": "..."}}
+文章:
+"""{article_text}"""
