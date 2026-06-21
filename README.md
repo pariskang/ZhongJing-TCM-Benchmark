@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![arXiv](https://img.shields.io/badge/arXiv-2024.XXXXX-b31b1b.svg)](https://arxiv.org/abs/)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pariskang/ZhongJing-TCM-Benchmark/blob/main/notebooks/colab_minimax_generation.ipynb)
 
 A comprehensive benchmark dataset for evaluating Traditional Chinese Medicine (TCM) common sense knowledge in Large Language Models.
 
@@ -86,10 +87,15 @@ python run.py generate --concurrency 8              # parallel question generati
 python run.py generate --resume                     # re-run to fill only missing items
 ```
 
-For a one-click cloud run, open
+For a one-click cloud run, open the notebook in Google Colab:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pariskang/ZhongJing-TCM-Benchmark/blob/main/notebooks/colab_minimax_generation.ipynb)
+
 [`notebooks/colab_minimax_generation.ipynb`](notebooks/colab_minimax_generation.ipynb)
-in Google Colab — it drives the full M1→M9 pipeline with MiniMax concurrency and
-checkpoint/resume (persisted to Google Drive across runtime disconnects).
+drives the full M1→M9 pipeline with MiniMax concurrency and checkpoint/resume
+(persisted to Google Drive across runtime disconnects). It reads `.txt`, `.html`
+and `.docx` documents straight from a Google Drive folder and parses messy
+filenames such as `[公众号] - 2023-03-10 标题.docx` automatically.
 
 ### Load the generated questions
 

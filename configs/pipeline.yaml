@@ -26,6 +26,7 @@ ingest:
   min_chars: 100          # drop articles shorter than this after cleaning
   dedup_threshold: 0.85   # MinHash LSH Jaccard threshold for de-duplication
   minhash_perm: 128
+  extensions: [".txt", ".md", ".html", ".htm", ".docx"]  # document types to read
 
 # ---- M2 quality gate -------------------------------------------------------
 quality:
