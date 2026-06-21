@@ -104,7 +104,12 @@ DEFAULT_CONFIG: dict = {
         "stager_eval": "prompts/stager_eval.txt",
         "judge_quality": "prompts/judge_quality.txt",
     },
-    "ingest": {"min_chars": 100, "dedup_threshold": 0.85, "minhash_perm": 128},
+    "ingest": {
+        "min_chars": 100,
+        "dedup_threshold": 0.85,
+        "minhash_perm": 128,
+        "extensions": [".txt", ".md", ".html", ".htm", ".docx"],
+    },
     "quality": {
         "min_chars": 300,
         "min_tcm_density": 0.04,

@@ -28,6 +28,11 @@ typer
 chardet
 datasketch
 
+# Document ingestion (M1: .docx / .html)
+python-docx
+beautifulsoup4
+lxml
+
 # Visualisation
 matplotlib
 seaborn
