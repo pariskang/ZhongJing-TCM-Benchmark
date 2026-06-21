@@ -65,14 +65,18 @@ def generate(
     limit: int = typer.Option(0, help="Cap the number of passages (0 = all)."),
     resume: bool = typer.Option(True, help="Resume from existing questions_raw.jsonl."),
     concurrency: int = typer.Option(0, help="Parallel passages in flight (0 = config)."),
+    progress: bool = typer.Option(True, help="Show the live tqdm progress bar."),
 ) -> None:
     """M5 — LLM question generation (single/multiple/short × 3 difficulties).
 
     Resumable & concurrent: re-run after a disconnect to fill only what's missing.
+    Progress is shown live and each passage is stored the moment it completes.
     """
     import m5_generate
 
-    m5_generate.run(limit=limit or None, resume=resume, concurrency=concurrency or None)
+    m5_generate.run(
+        limit=limit or None, resume=resume, concurrency=concurrency or None, progress=progress
+    )
 
 
 @app.command()

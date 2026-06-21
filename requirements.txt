@@ -33,6 +33,9 @@ python-docx
 beautifulsoup4
 lxml
 
+# Progress / UX
+tqdm
+
 # Visualisation
 matplotlib
 seaborn

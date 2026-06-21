@@ -70,9 +70,18 @@ def test_run_writes_full_grid(tmp_path):
     import m5_generate
 
     save_jsonl([_passage(), _passage()], tmp_path / "passages_labeled.jsonl")
-    qs = m5_generate.run(cfg=_cfg(tmp_path), resume=False)
+    qs = m5_generate.run(cfg=_cfg(tmp_path), resume=False, progress=False)
     assert len(qs) == 18  # 2 passages × 9
     assert (tmp_path / "questions_raw.jsonl").exists()
+
+
+def test_run_with_progress_bar(tmp_path):
+    # progress=True must work whether or not tqdm is installed (graceful fallback).
+    import m5_generate
+
+    save_jsonl([_passage(), _passage()], tmp_path / "passages_labeled.jsonl")
+    qs = m5_generate.run(cfg=_cfg(tmp_path), resume=False, progress=True)
+    assert len(qs) == 18
 
 
 def test_run_resume_skips_completed(tmp_path):
@@ -80,11 +89,11 @@ def test_run_resume_skips_completed(tmp_path):
 
     save_jsonl([_passage(), _passage()], tmp_path / "passages_labeled.jsonl")
     cfg = _cfg(tmp_path)
-    m5_generate.run(cfg=cfg, resume=False)
+    m5_generate.run(cfg=cfg, resume=False, progress=False)
     out = tmp_path / "questions_raw.jsonl"
 
     # Second run with resume=True → nothing new, count unchanged.
-    qs2 = m5_generate.run(cfg=cfg, resume=True)
+    qs2 = m5_generate.run(cfg=cfg, resume=True, progress=False)
     assert len(qs2) == 18
 
 
@@ -93,7 +102,7 @@ def test_run_resume_regenerates_missing(tmp_path):
 
     save_jsonl([_passage(), _passage()], tmp_path / "passages_labeled.jsonl")
     cfg = _cfg(tmp_path)
-    m5_generate.run(cfg=cfg, resume=False)
+    m5_generate.run(cfg=cfg, resume=False, progress=False)
     out = tmp_path / "questions_raw.jsonl"
 
     # Simulate a crash: keep only the first 10 of 18 lines.
@@ -101,7 +110,7 @@ def test_run_resume_regenerates_missing(tmp_path):
     out.write_text("\n".join(lines[:10]) + "\n", encoding="utf-8")
     assert len(_done_combos(out)) <= 10
 
-    qs3 = m5_generate.run(cfg=cfg, resume=True)
+    qs3 = m5_generate.run(cfg=cfg, resume=True, progress=False)
     assert len(qs3) == 18  # the missing triples were regenerated
     # every (passage, type, difficulty) triple present exactly once
     triples = _done_combos(out)

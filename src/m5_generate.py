@@ -127,8 +127,23 @@ def _done_combos(path) -> set[tuple[str, str, str]]:
     return done
 
 
-async def _generate_all(work, model, max_chars, concurrency, out_path) -> int:
-    """Generate *work* (passage, missing-combos) pairs concurrently, checkpointing."""
+def _make_bar(total: int, desc: str = "M5 生成试题"):
+    """A live tqdm progress bar (notebook-aware), or ``None`` if tqdm is absent."""
+    try:
+        from tqdm.auto import tqdm
+
+        return tqdm(total=total, desc=desc, unit="passage")
+    except Exception:  # pragma: no cover - optional dep
+        return None
+
+
+async def _generate_all(work, model, max_chars, concurrency, out_path, progress: bool = True) -> int:
+    """Generate *work* (passage, missing-combos) pairs concurrently, checkpointing.
+
+    Progress is reported live: each passage advances a tqdm bar (or, without
+    tqdm, logs every 25 passages), and its questions are flushed to *out_path*
+    the moment the passage completes — so storage is real-time, not batched.
+    """
     import asyncio
 
     sem = asyncio.Semaphore(max(1, concurrency))
@@ -136,6 +151,7 @@ async def _generate_all(work, model, max_chars, concurrency, out_path) -> int:
     total_new = 0
     done_passages = 0
     total = len(work)
+    bar = _make_bar(total) if progress else None
 
     async def worker(passage: Passage, combos: list[tuple[str, str]]):
         nonlocal total_new, done_passages
@@ -146,10 +162,17 @@ async def _generate_all(work, model, max_chars, concurrency, out_path) -> int:
                 append_jsonl(qs, out_path)
                 total_new += len(qs)
             done_passages += 1
-            if done_passages % 25 == 0 or done_passages == total:
+            if bar is not None:
+                bar.update(1)
+                bar.set_postfix(questions=total_new)
+            elif done_passages % 25 == 0 or done_passages == total:
                 _log.info("progress: %d/%d passages (+%d questions)", done_passages, total, total_new)
 
-    await asyncio.gather(*[worker(p, c) for p, c in work])
+    try:
+        await asyncio.gather(*[worker(p, c) for p, c in work])
+    finally:
+        if bar is not None:
+            bar.close()
     return total_new
 
 
@@ -158,12 +181,14 @@ def run(
     limit: Optional[int] = None,
     resume: bool = True,
     concurrency: Optional[int] = None,
+    progress: bool = True,
 ) -> list[Question]:
     """Generate questions for every labelled passage → ``interim/questions_raw.jsonl``.
 
     Parallel (``llm.max_concurrency``) and resumable: with ``resume=True`` only
     the missing ``(passage, type, difficulty)`` triples are generated and each
-    passage is checkpointed to disk the moment it completes.
+    passage is checkpointed to disk the moment it completes.  Set ``progress``
+    to show/hide the live tqdm bar.
     """
     import asyncio
 
@@ -202,7 +227,9 @@ def run(
         "generating %d passages (%d triples) with concurrency=%d, model=%s",
         len(work), sum(len(c) for _, c in work), concurrency, model,
     )
-    new_count = asyncio.run(_generate_all(work, model, max_chars, concurrency, out_path))
+    new_count = asyncio.run(
+        _generate_all(work, model, max_chars, concurrency, out_path, progress=progress)
+    )
 
     questions = load_jsonl_as(out_path, Question)
     _log.info("generated %d new questions; %d total in %s", new_count, len(questions), out_path.name)
