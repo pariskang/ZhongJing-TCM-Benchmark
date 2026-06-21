@@ -143,7 +143,7 @@ DEFAULT_CONFIG: dict = {
         "provider": "openai",  # openai | minimax | mock
         "base_url": None,
         "temperature": 0.2,
-        "max_tokens": 1024,
+        "max_tokens": 8192,
         "timeout": 60,
         "max_concurrency": 4,
         "use_cache": True,

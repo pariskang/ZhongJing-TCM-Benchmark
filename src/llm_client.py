@@ -131,7 +131,7 @@ class LLMClient:
         api_key_env: str = "OPENAI_API_KEY",
         cache_dir: Optional[str] = None,
         temperature: float = 0.2,
-        max_tokens: int = 1024,
+        max_tokens: int = 8192,
         timeout: float = 60.0,
         use_cache: bool = True,
     ):
@@ -291,7 +291,7 @@ def get_client() -> LLMClient:
             provider=provider,
             base_url=llm.get("base_url"),
             temperature=llm.get("temperature", 0.2),
-            max_tokens=llm.get("max_tokens", 1024),
+            max_tokens=llm.get("max_tokens", 8192),
             timeout=llm.get("timeout", 60.0),
             use_cache=llm.get("use_cache", True),
         )
