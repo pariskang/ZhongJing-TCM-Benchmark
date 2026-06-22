@@ -145,7 +145,16 @@ names like:
 symbols, and the title taken from the remainder. The publish date is carried
 onto each `Article` so M2/M9 can use it.
 
-### 2c. The data contract
+### 2c. Output language
+
+Generated questions default to **Simplified Chinese** — the v5 generation prompt
+carries a top-priority `【输出语言】` block, and the language is injected from
+`generate.language: 简体中文` (`configs/pipeline.yaml`), so even an English source
+article yields 中文 stems/options/explanations. Override that key to target a
+different language (note: the prompts themselves are authored in Chinese, so for a
+non-Chinese benchmark you would also localise `prompts/gen_question.v5.txt`).
+
+### 2d. The data contract
 
 Every record in `data/final/*.jsonl` follows `Question` in
 [`src/schemas.py`](../src/schemas.py): `single_choice` / `multiple_response` /

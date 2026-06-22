@@ -123,6 +123,11 @@ The output cap defaults to `llm.max_tokens: 8192` (in `configs/pipeline.yaml`),
 which leaves room for long step-by-step explanations and short-answer references;
 lower it to save tokens if you only need choice questions.
 
+Generated questions default to **Simplified Chinese** (题干/选项/解析 all in 中文,
+even when a source article is in another language). The generation prompt enforces
+this and the language is read from `generate.language: 简体中文` in
+`configs/pipeline.yaml` — change that key if you need another output language.
+
 For a one-click cloud run, open the notebook in Google Colab:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pariskang/ZhongJing-TCM-Benchmark/blob/main/notebooks/colab_minimax_generation.ipynb)
@@ -130,10 +135,14 @@ For a one-click cloud run, open the notebook in Google Colab:
 [`notebooks/colab_minimax_generation.ipynb`](notebooks/colab_minimax_generation.ipynb)
 drives the full M1→M9 pipeline with MiniMax concurrency, a live progress bar and
 checkpoint/resume (persisted to Google Drive across runtime disconnects). Step 4
-exposes `MAX_TOKENS` (default 8192), `MAX_CONCURRENCY` and the model name; step 6
-reads `.txt`, `.html` and `.docx` documents straight from a Google Drive folder
+exposes `MAX_TOKENS` (default 8192), `MAX_CONCURRENCY`, the model name and
+`LANGUAGE` (default 简体中文); step 6 reads `.txt`, `.html` and `.docx` documents
+straight from a Google Drive folder
 (e.g. `/content/drive/MyDrive/zhongjing-tcm-benchmark/yichengyoudao`) and parses
-messy filenames such as `[公众号] - 2023-03-10 标题.docx` automatically.
+messy filenames such as `[公众号] - 2023-03-10 标题.docx` automatically. **Step 12**
+then runs the whole clinical-evaluation framework (T0–T6 / L1–L4 + invariance,
+abstention, calibration, heterogeneous judges) with one click — free via the mock
+provider by default, or on the real model over the demo sets.
 
 ### Load the generated questions
 
