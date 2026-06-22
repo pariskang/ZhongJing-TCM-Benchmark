@@ -91,6 +91,7 @@ python run.py rubric --model gpt-4o        # L3/L4 weighted rubric grading + jud
 python run.py abstain --model gpt-4o       # A@D abstention probes (abstain iff info insufficient)
 python run.py tools --model gpt-4o         # T3 tool-use agent (contraindication checks; tool-grounding)
 python run.py episode --model gpt-4o       # T4 longitudinal episode (follow-up & adjustment; 同病异治 trajectory)
+python run.py mdt --model gpt-4o           # T5 multi-agent MDT (collaboration, disagreement, group-vs-individual)
 ```
 
 ### Batch generation with MiniMax (concurrent + resumable)

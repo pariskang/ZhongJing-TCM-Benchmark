@@ -180,6 +180,14 @@ def episode(model: str = typer.Option("mock", help="Model under test.")) -> None
 
 
 @app.command()
+def mdt(model: str = typer.Option("mock", help="Base model for the specialty panel.")) -> None:
+    """T5 — multi-agent MDT (collaboration, disagreement, group-vs-individual)."""
+    import t5_mdt
+
+    t5_mdt.run(model=model)
+
+
+@app.command()
 def stats() -> None:
     """M9 — ANOVA + Tukey + regression + DP token segmentation."""
     import m9_stats

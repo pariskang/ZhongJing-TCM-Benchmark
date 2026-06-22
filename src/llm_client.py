@@ -412,6 +412,16 @@ def mock_completion(prompt: str, model: str = "mock") -> str:
             return json.dumps({"action": "diagnose", "answer": "（mock 辨证，离线占位）"}, ensure_ascii=False)
         return json.dumps({"action": "ask", "query": q}, ensure_ascii=False)
 
+    # 0c) T5 MDT specialty agent -> vote the first option label (homogeneous panel).
+    if "多学科会诊" in p:
+        tail = p.rsplit("选项", 1)[-1] if "选项" in p else p
+        lm = re.search(r"(?m)^\s*([A-D甲乙丙丁戊己1-6])[).、．。:：]\s*\S", tail)
+        label = lm.group(1) if lm else "A"
+        return json.dumps(
+            {"vote": [label], "confidence": 0.7, "rationale": "（mock）本专科意见"},
+            ensure_ascii=False,
+        )
+
     # 1a) T3 tool-use agent -> call the contraindication checker, then ground the answer.
     if ("中医临床智能体" in p) and ("可用工具" in p):
         convo = p.rsplit("【历史】", 1)[-1]

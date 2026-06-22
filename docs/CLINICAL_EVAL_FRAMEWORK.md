@@ -46,7 +46,7 @@ endless probing), **action validity** (no tool-grounding hallucination),
 | **T2** | Active inquiry (patient simulator) | question quality, info value, timely closure, abstention | ✅ `src/t2_patient_sim.py` — zero-leak `PatientSim`, ask→answer loop, scoring (turns / key-feature recall / premature closure / abstention); `run.py consult` |
 | **T3** | Tool-use agent | order test / retrieve / check contraindication; tool-grounding | ✅ `src/t3_tools.py` — deterministic 十八反/十九畏 + dose checkers, a call→result agent loop, and **tool-grounding contradiction detection** (answer vs observed tool result); `run.py tools` |
 | **T4** | Longitudinal episode (follow-up) | adjust plan from outcome feedback; trajectory consistency | ✅ `src/t4_longitudinal.py` — outcome-dependent evolution (wrong Tx → 入里化热), per-visit + trajectory scoring (resolution / adverse transitions / adjustment recall / clean resolution); `run.py episode` |
-| **T5** | Multi-agent / MDT | collaboration, disagreement resolution, escalation | ⬜ planned |
+| **T5** | Multi-agent / MDT | collaboration, disagreement resolution, escalation | ✅ `src/t5_mdt.py` — specialty panel, confidence-weighted majority / chair aggregation, **group-vs-individual** (correct vs amplify), disagreement + red-flag recall; `run.py mdt` |
 | **T6** | Open rubric dialogue | communication, empathy, safety, completeness | ⬜ planned (HealthBench-style) |
 
 A serious benchmark places items at several tiers; T0 today, T1 strengthened by
@@ -162,7 +162,10 @@ F. Controls: judge meta-eval, perturbation battery, abstention calibration,
 - [x] **T4 longitudinal episode (`src/t4_longitudinal.py`).** Outcome-dependent
   syndrome evolution; trajectory scoring (resolution / adverse transitions /
   adjustment recall / clean resolution). `run.py episode`.
-- [ ] **T5–T6** (MDT multi-agent, open rubric dialogue), ECE/reliability
+- [x] **T5 MDT multi-agent (`src/t5_mdt.py`).** Specialty panel + aggregation,
+  group-vs-individual (corrected vs amplified), disagreement & red-flag recall.
+  `run.py mdt`.
+- [ ] **T6** (open rubric dialogue — multi-turn HealthBench-style), ECE/reliability
   calibration, and heterogeneous/tool-grounded judges.
 
 Contributions are welcome against any roadmap item; open an issue referencing

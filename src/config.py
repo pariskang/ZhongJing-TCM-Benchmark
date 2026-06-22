@@ -111,6 +111,7 @@ DEFAULT_CONFIG: dict = {
         "prm_step": "prompts/prm_step.txt",
         "rubric_grade": "prompts/rubric_grade.txt",
         "tool_agent": "prompts/tool_agent.txt",
+        "mdt_agent": "prompts/mdt_agent.txt",
     },
     "ingest": {
         "min_chars": 100,
