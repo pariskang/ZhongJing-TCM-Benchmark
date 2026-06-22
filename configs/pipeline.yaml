@@ -25,6 +25,7 @@ prompts:
   gen_counterfactual: prompts/gen_counterfactual.txt  # T1 counterfactual minimal pair
   prm_step: prompts/prm_step.txt                # L2 step-level process preference
   rubric_grade: prompts/rubric_grade.txt        # L3/L4 rubric grading judge
+  tool_agent: prompts/tool_agent.txt            # T3 tool-use agent
 
 # ---- M1 ingest -------------------------------------------------------------
 ingest:

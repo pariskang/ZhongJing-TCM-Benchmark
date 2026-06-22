@@ -412,6 +412,20 @@ def mock_completion(prompt: str, model: str = "mock") -> str:
             return json.dumps({"action": "diagnose", "answer": "（mock 辨证，离线占位）"}, ensure_ascii=False)
         return json.dumps({"action": "ask", "query": q}, ensure_ascii=False)
 
+    # 1a) T3 tool-use agent -> call the contraindication checker, then ground the answer.
+    if ("中医临床智能体" in p) and ("可用工具" in p):
+        convo = p.rsplit("【历史】", 1)[-1]
+        if "工具结果" not in convo:                       # not yet consulted a tool
+            task = p.split("任务:", 1)[-1].split("可用工具", 1)[0]
+            m_rx = re.search(r"[:：]\s*([^。\n]*(?:、[^。\n、]+)+)", task)
+            herbs = [h.strip() for h in m_rx.group(1).split("、")] if m_rx else []
+            return json.dumps(
+                {"action": "call_tool", "tool": "contraindication_check", "args": {"herbs": herbs}},
+                ensure_ascii=False,
+            )
+        conflict = ('"conflict": true' in convo.lower()) or ('"conflict":true' in convo.lower())
+        return json.dumps({"action": "final", "answer": "有禁忌" if conflict else "安全"}, ensure_ascii=False)
+
     # 1c) L2 step-PRM preference prompt -> pick the sounder next action.
     if ("更优" in p) and ("候选A" in p):
         a = re.search(r"候选A[:：]\s*(.+)", p)

@@ -110,6 +110,7 @@ DEFAULT_CONFIG: dict = {
         "gen_counterfactual": "prompts/gen_counterfactual.txt",
         "prm_step": "prompts/prm_step.txt",
         "rubric_grade": "prompts/rubric_grade.txt",
+        "tool_agent": "prompts/tool_agent.txt",
     },
     "ingest": {
         "min_chars": 100,

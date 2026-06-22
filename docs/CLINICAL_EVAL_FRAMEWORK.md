@@ -44,7 +44,7 @@ endless probing), **action validity** (no tool-grounding hallucination),
 | **T0** | Static best-answer | knowledge breadth (anti-cheat anchor) | ✅ M1–M7 produce single/multiple/short across 9×3×3 |
 | **T1** | Sequential information unlocking | differential under staged info | ✅ `src/t1_counterfactual.py` — counterfactual minimal pairs (flip one 四诊 feature → answer flips; pair-accuracy + flip-rate) and cumulative information-staging (information efficiency); `run.py counterfactual`. v5 prompt also mandates a complete disease course |
 | **T2** | Active inquiry (patient simulator) | question quality, info value, timely closure, abstention | ✅ `src/t2_patient_sim.py` — zero-leak `PatientSim`, ask→answer loop, scoring (turns / key-feature recall / premature closure / abstention); `run.py consult` |
-| **T3** | Tool-use agent | order test / retrieve / check contraindication; tool-grounding | ⬜ planned |
+| **T3** | Tool-use agent | order test / retrieve / check contraindication; tool-grounding | ✅ `src/t3_tools.py` — deterministic 十八反/十九畏 + dose checkers, a call→result agent loop, and **tool-grounding contradiction detection** (answer vs observed tool result); `run.py tools` |
 | **T4** | Longitudinal episode (follow-up) | adjust plan from outcome feedback; trajectory consistency | ⬜ planned |
 | **T5** | Multi-agent / MDT | collaboration, disagreement resolution, escalation | ⬜ planned |
 | **T6** | Open rubric dialogue | communication, empathy, safety, completeness | ⬜ planned (HealthBench-style) |
@@ -100,8 +100,10 @@ weakest here.
   (`m8_evaluate.evaluate_invariance` / `run.py invariance` — shuffle + A–D↔甲乙丙丁
   /1–4, reports accuracy drop & content-level consistency); bias injection +
   fairness gap, 四诊/lab noise, paraphrase invariance, sycophancy probes ⬜.
-- **Abstention calibration:** A@D, premature-closure rate, ECE,
-  missing-premise abstention. 🟡 (refusal detection exists)
+- **Abstention calibration:** A@D, premature-closure rate, missing-premise
+  abstention. ✅ `src/abstention.py` — reuses the M8 refusal detector to score
+  abstention precision/recall (= A@D)/F1 on missing-premise items + the
+  over-abstention rate on answerable ones; `run.py abstain`. ECE/reliability ⬜.
 - **Contamination:** new-vs-old case performance gap, private held-out, dynamic
   injection. 🟡 (synthetic-only release + MinHash de-dup already defend leakage)
 - **Dual signal:** always collect end-to-end **and** step-level signals. ⬜
@@ -152,10 +154,12 @@ F. Controls: judge meta-eval, perturbation battery, abstention calibration,
 - [x] **L3/L4 rubrics + judge meta-evaluation (`src/l3l4_rubric.py`).** Weighted,
   axis-tagged, positive/negative rubric items; Cohen's-κ meta-eval vs physician
   labels.
-- [ ] **Abstention probes (extends M5/M8).** A small missing-premise set; reuse
-  the refusal detector to score A@D / premature-closure on static items.
-- [ ] **T3–T6** (tool-use agent, longitudinal episode, MDT, open rubric dialogue)
-  and heterogeneous/tool-grounded judges.
+- [x] **Abstention probes (`src/abstention.py`).** Missing-premise items scored
+  with the M8 refusal detector → A@D (recall) + over-abstention rate. `run.py abstain`.
+- [x] **T3 tool-use agent (`src/t3_tools.py`).** 十八反/十九畏 + dose checkers, a
+  call→result loop, and tool-grounding contradiction detection. `run.py tools`.
+- [ ] **T4–T6** (longitudinal episode, MDT, open rubric dialogue), ECE/reliability
+  calibration, and heterogeneous/tool-grounded judges.
 
 Contributions are welcome against any roadmap item; open an issue referencing
 the tier/layer and the admission checklist above.

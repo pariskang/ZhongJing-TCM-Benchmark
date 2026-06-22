@@ -156,6 +156,22 @@ def rubric(model: str = typer.Option("mock", help="Rubric judge model.")) -> Non
 
 
 @app.command()
+def abstain(model: str = typer.Option("mock", help="Model under test.")) -> None:
+    """Abstention probes — A@D: abstain iff information is insufficient."""
+    import abstention
+
+    abstention.run(model=model)
+
+
+@app.command()
+def tools(model: str = typer.Option("mock", help="Tool-use agent under test.")) -> None:
+    """T3 — tool-use agent (contraindication/dose checks; tool-grounding contradiction)."""
+    import t3_tools
+
+    t3_tools.run(model=model)
+
+
+@app.command()
 def stats() -> None:
     """M9 — ANOVA + Tukey + regression + DP token segmentation."""
     import m9_stats

@@ -88,6 +88,8 @@ python run.py counterfactual               # T1 counterfactual minimal pairs (fl
 python run.py consult --model gpt-4o       # T2 active-inquiry consultation vs the patient simulator
 python run.py process --model gpt-4o       # L2 step-level process preference + result/process gate
 python run.py rubric --model gpt-4o        # L3/L4 weighted rubric grading + judge meta-evaluation
+python run.py abstain --model gpt-4o       # A@D abstention probes (abstain iff info insufficient)
+python run.py tools --model gpt-4o         # T3 tool-use agent (contraindication checks; tool-grounding)
 ```
 
 ### Batch generation with MiniMax (concurrent + resumable)
