@@ -82,9 +82,12 @@ python run.py pipeline                  # M1..M7
 python run.py evaluate --model gpt-4o   # M8
 python run.py stats                     # M9 (ANOVA, regression, DP segmentation)
 
-# robustness & interactive (clinical-eval framework)
-python run.py invariance --model gpt-4o # option-order & label-symbol (A–D↔甲乙丙丁/1–4) invariance
-python run.py consult --model gpt-4o    # T2 active-inquiry consultation vs the patient simulator
+# robustness & interactive (clinical-eval framework — docs/CLINICAL_EVAL_FRAMEWORK.md)
+python run.py invariance --model gpt-4o    # option-order & label-symbol (A–D↔甲乙丙丁/1–4) invariance
+python run.py counterfactual               # T1 counterfactual minimal pairs (flip one 四诊 → answer flips)
+python run.py consult --model gpt-4o       # T2 active-inquiry consultation vs the patient simulator
+python run.py process --model gpt-4o       # L2 step-level process preference + result/process gate
+python run.py rubric --model gpt-4o        # L3/L4 weighted rubric grading + judge meta-evaluation
 ```
 
 ### Batch generation with MiniMax (concurrent + resumable)

@@ -109,6 +109,7 @@ DEFAULT_CONFIG: dict = {
         "expert_inquiry": "prompts/expert_inquiry.txt",
         "gen_counterfactual": "prompts/gen_counterfactual.txt",
         "prm_step": "prompts/prm_step.txt",
+        "rubric_grade": "prompts/rubric_grade.txt",
     },
     "ingest": {
         "min_chars": 100,

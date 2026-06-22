@@ -148,6 +148,14 @@ def process(model: str = typer.Option("mock", help="Model under test / process j
 
 
 @app.command()
+def rubric(model: str = typer.Option("mock", help="Rubric judge model.")) -> None:
+    """L3/L4 — weighted axis-tagged rubric grading + judge meta-evaluation."""
+    import l3l4_rubric
+
+    l3l4_rubric.run(model=model)
+
+
+@app.command()
 def stats() -> None:
     """M9 — ANOVA + Tukey + regression + DP token segmentation."""
     import m9_stats

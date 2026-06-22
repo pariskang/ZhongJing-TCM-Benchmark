@@ -42,7 +42,7 @@ endless probing), **action validity** (no tool-grounding hallucination),
 | Tier | Question type | What static MCQ can't test | Status in this repo |
 |---|---|---|---|
 | **T0** | Static best-answer | knowledge breadth (anti-cheat anchor) | ✅ M1–M7 produce single/multiple/short across 9×3×3 |
-| **T1** | Sequential information unlocking | differential under staged info | 🟡 v5 prompt mandates a *complete disease course* + a decisive (counterfactual-sensitive) feature; explicit stage-reveal runtime ⬜ |
+| **T1** | Sequential information unlocking | differential under staged info | ✅ `src/t1_counterfactual.py` — counterfactual minimal pairs (flip one 四诊 feature → answer flips; pair-accuracy + flip-rate) and cumulative information-staging (information efficiency); `run.py counterfactual`. v5 prompt also mandates a complete disease course |
 | **T2** | Active inquiry (patient simulator) | question quality, info value, timely closure, abstention | ✅ `src/t2_patient_sim.py` — zero-leak `PatientSim`, ask→answer loop, scoring (turns / key-feature recall / premature closure / abstention); `run.py consult` |
 | **T3** | Tool-use agent | order test / retrieve / check contraindication; tool-grounding | ⬜ planned |
 | **T4** | Longitudinal episode (follow-up) | adjust plan from outcome feedback; trajectory consistency | ⬜ planned |
@@ -74,9 +74,9 @@ Report each layer independently; never collapse to one accuracy number.
 | Layer | Scores | Key metrics | Status |
 |---|---|---|---|
 | **L1 Result** | final dx / syndrome / treatment | single-key correct / manifold membership | ✅ M8 accuracy·P·R·F1; short-answer semantic judge |
-| **L2 Process** | reasoning & action trajectory | step-PRM: info efficiency, no premature closure, grounded chain, tool correctness | ⬜ planned (process gate) |
-| **L3 Safety** | harm avoidance | red-flag detection & escalation, contraindication/dose, hedging vs over-confidence | 🟡 M8 refusal/abstention primitive; v5 bakes safety into items; full rubric ⬜ |
-| **L4 Interaction** | communication & experience | clarity, empathy, anti-sycophancy | ⬜ planned (rubric) |
+| **L2 Process** | reasoning & action trajectory | step-PRM: info efficiency, no premature closure, grounded chain | ✅ `src/l2_process.py` — step-PRM cases (correct / plausible-wrong / neutral), process-preference accuracy, and a result/process gate (premature-closure correct → downgraded); `run.py process` |
+| **L3 Safety** | harm avoidance | red-flag detection & escalation, contraindication/dose, hedging vs over-confidence | ✅ `src/l3l4_rubric.py` — weighted safety axis with **negative** items (contraindications); M8 refusal/abstention primitive; v5 bakes safety into items |
+| **L4 Interaction** | communication & experience | clarity, empathy, anti-sycophancy | ✅ `src/l3l4_rubric.py` — communication / context-seeking / hedging axes; `run.py rubric` |
 
 **Iron law — decouple result from process:** "right answer, wrong reason"
 (guessing / shortcut / position bias) passes L1 but must fail L2 (a *process
@@ -91,9 +91,11 @@ weakest here.
   leakage** (symptom-level facts only — never the syndrome name), realism
   (human reader study), persona diversity (MAQuE), non-collusion (simulator ≠
   graded model). ⬜
-- **Judge reliability:** meta-evaluate the LLM-grader against physician labels
-  (κ/concordance), mitigate shared blind spots with heterogeneous /
-  tool-grounded judges. 🟡 (a short-answer LLM judge exists; meta-eval ⬜)
+- **Judge reliability:** meta-evaluate the grader against physician labels
+  (κ/concordance). ✅ `l3l4_rubric.meta_evaluate` (the demo keyword judge scores
+  κ≈0.83 vs physician labels — i.e. *not* 1.0, which is exactly why judges must be
+  validated). Heterogeneous / tool-grounded judges to mitigate shared blind
+  spots ⬜.
 - **Robustness battery:** **option-order & label-symbol invariance** ✅
   (`m8_evaluate.evaluate_invariance` / `run.py invariance` — shuffle + A–D↔甲乙丙丁
   /1–4, reports accuracy drop & content-level consistency); bias injection +
@@ -141,15 +143,19 @@ F. Controls: judge meta-eval, perturbation battery, abstention calibration,
 - [x] **T2 patient simulator (`src/t2_patient_sim.py`).** Zero-leak `PatientSim`
   over the existing `LLMClient`, ask→answer loop, and an inquiry-efficiency /
   timely-closure / premature-closure / abstention scorer. `run.py consult`.
-- [ ] **T1 explicit staging + counterfactual pairs (extends M5).** Paired items
-  (flip one 四诊 feature → answer flips) + an `information_stages` field; score
-  information efficiency. *Foundation already in the v5 prompt.*
+- [x] **T1 counterfactual pairs + information staging (`src/t1_counterfactual.py`).**
+  Flip one 四诊 feature → answer flips (pair-accuracy + flip-rate); cumulative
+  staging → information efficiency. `run.py counterfactual`.
+- [x] **L2 process gate + step-PRM data (`src/l2_process.py`).** Step cases with
+  correct / plausible-wrong / neutral actions; process-preference accuracy; a
+  result/process gate that downgrades premature-closure correct answers.
+- [x] **L3/L4 rubrics + judge meta-evaluation (`src/l3l4_rubric.py`).** Weighted,
+  axis-tagged, positive/negative rubric items; Cohen's-κ meta-eval vs physician
+  labels.
 - [ ] **Abstention probes (extends M5/M8).** A small missing-premise set; reuse
   the refusal detector to score A@D / premature-closure on static items.
-- [ ] **L2 process gate + step-PRM data (new).** Emit trajectories with one
-  correct and one plausible-wrong action (plus neutral negatives).
-- [ ] **L3/L4 rubrics + judge meta-evaluation (new).** Weighted, axis-tagged,
-  multi-physician-consensus rubric items; calibrate the LLM judge vs physicians.
+- [ ] **T3–T6** (tool-use agent, longitudinal episode, MDT, open rubric dialogue)
+  and heterogeneous/tool-grounded judges.
 
 Contributions are welcome against any roadmap item; open an issue referencing
 the tier/layer and the admission checklist above.
