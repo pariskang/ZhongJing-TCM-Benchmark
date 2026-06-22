@@ -108,6 +108,7 @@ DEFAULT_CONFIG: dict = {
         "patient_sim": "prompts/patient_sim.txt",
         "expert_inquiry": "prompts/expert_inquiry.txt",
         "gen_counterfactual": "prompts/gen_counterfactual.txt",
+        "prm_step": "prompts/prm_step.txt",
     },
     "ingest": {
         "min_chars": 100,

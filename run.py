@@ -128,6 +128,26 @@ def consult(
 
 
 @app.command()
+def counterfactual(
+    model: str = typer.Option("", help="Generation model (default: config)."),
+    limit: int = typer.Option(0, help="Cap passages (0 = all)."),
+) -> None:
+    """T1 — generate counterfactual minimal pairs (flip one 四诊 feature → answer flips)."""
+    import t1_counterfactual
+
+    t1_counterfactual.run(model=model or t1_counterfactual.load_config().get("generate.model", "gpt-4o"),
+                          limit=limit or None)
+
+
+@app.command()
+def process(model: str = typer.Option("mock", help="Model under test / process judge.")) -> None:
+    """L2 — step-level process preference (PRM) + result/process gate."""
+    import l2_process
+
+    l2_process.run(model=model)
+
+
+@app.command()
 def stats() -> None:
     """M9 — ANOVA + Tukey + regression + DP token segmentation."""
     import m9_stats

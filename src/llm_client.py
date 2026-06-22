@@ -412,6 +412,18 @@ def mock_completion(prompt: str, model: str = "mock") -> str:
             return json.dumps({"action": "diagnose", "answer": "（mock 辨证，离线占位）"}, ensure_ascii=False)
         return json.dumps({"action": "ask", "query": q}, ensure_ascii=False)
 
+    # 1c) L2 step-PRM preference prompt -> pick the sounder next action.
+    if ("更优" in p) and ("候选A" in p):
+        a = re.search(r"候选A[:：]\s*(.+)", p)
+        b = re.search(r"候选B[:：]\s*(.+)", p)
+        ta = a.group(1).strip() if a else ""
+        tb = b.group(1).strip() if b else ""
+        good = ("追问", "采集", "判别", "四诊", "辨证", "据此")
+        bad = ("立即", "尚未", "未问", "直接判定", "已问", "已采集", "无关", "寒暄", "重复")
+        sa = sum(g in ta for g in good) - sum(x in ta for x in bad)
+        sb = sum(g in tb for g in good) - sum(x in tb for x in bad)
+        return json.dumps({"better": "A" if sa >= sb else "B"}, ensure_ascii=False)
+
     # 2) STAGER evaluation prompt -> structured answer block.
     if ("[Answer]" in p) or ("答案选择" in p):
         # Label-aware: answer the first option label (A–D / 甲乙丙丁 / 1–4) that
