@@ -105,9 +105,13 @@ def generate_for_passage(
         return []
     cfg = load_config()
     tmpl = resolve_path(cfg.get("prompts.gen_question")).read_text(encoding="utf-8")
+    language = cfg.get("generate.language", "简体中文")
     out: list[Question] = []
     for qtype, diff in (combos if combos is not None else FULL_GRID):
-        prompt = tmpl.format(qtype=qtype, difficulty=diff, passage_text=passage.text[:max_chars])
+        prompt = tmpl.format(
+            qtype=qtype, difficulty=diff, language=language,
+            passage_text=passage.text[:max_chars],
+        )
         try:
             data = call_json(prompt, model=model)
             out.append(_coerce_question(data, passage, qtype, diff))

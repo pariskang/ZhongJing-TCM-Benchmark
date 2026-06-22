@@ -63,6 +63,7 @@ generate:
   model: gpt-4o
   max_passage_chars: 1500
   prompt_version: v5
+  language: 简体中文        # 生成题目的默认语言(题干/选项/解析等);注入 {language} 占位符
 
 # ---- M6 DTQF dynamic filtering --------------------------------------------
 dtqf:

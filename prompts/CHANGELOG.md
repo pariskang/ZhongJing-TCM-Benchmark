@@ -8,6 +8,15 @@ presentation), and the prompt is revised accordingly.
 ## gen_question
 
 ### v5 (current)
+- **Simplified Chinese as the default output language.** A top-priority
+  `【输出语言】` block requires every natural-language field (stem, options,
+  reference_answer, explanation, theoretical_basis) to be written in
+  `{language}` — **defaulting to 简体中文** — even when the source passage is in
+  another language; only proper nouns (formulae/herbs/acupoints/classics) may keep
+  their Chinese originals, and JSON keys stay English. The language is injected
+  from `generate.language` in `configs/pipeline.yaml`, so the default is a real,
+  overridable setting rather than an implicit assumption. (v3/v4 carry the same
+  directive; the interaction/judge prompts state 简体中文 statically.)
 - **Complete disease course for case stems.** Clinical/case stems must now lay
   out the full 发病经过 — sex·age, chief complaint·course (onset, trigger),
   evolution (aggravating/relieving factors, prior treatment & response), current

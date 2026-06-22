@@ -138,7 +138,7 @@ DEFAULT_CONFIG: dict = {
         "nr_topics": 175,
         "random_state": 42,
     },
-    "generate": {"model": "gpt-4o", "max_passage_chars": 1500},
+    "generate": {"model": "gpt-4o", "max_passage_chars": 1500, "language": "简体中文"},
     "dtqf": {
         "sample_size": 100,
         "max_iter": 20,

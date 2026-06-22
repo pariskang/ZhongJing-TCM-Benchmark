@@ -1,5 +1,6 @@
 你是中医专家兼命题专家。基于【源文本】出 1 道高质量中医测评题。
 要求:
+- 输出语言: 全部自然语言字段一律使用「{language}」(即使源文本为其他语言);JSON 键名保持英文。
 - 题型: {qtype}  (single_choice=单选4选项 / multiple_response=多选 / short_answer=简答)
 - 难度: {difficulty}
    · basic: 考查术语/事实再认

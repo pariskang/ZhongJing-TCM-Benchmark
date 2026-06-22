@@ -1,5 +1,9 @@
 你是资深中医专家兼命题专家。请基于【源文本】命制 1 道高质量、信息完整、有思辨难度的中医测评题。
 
+【输出语言（最高优先级）】
+0. 全部输出内容(stem、options、answer 之外的 reference_answer、explanation、theoretical_basis 等所有自然语言字段)一律使用「{language}」书写;
+   即使【源文本】为其他语言,也必须以「{language}」命题、设置选项与作答。仅方剂/药材/腧穴/经典等专有名词可保留必要的中文原名,叙述与解析须为「{language}」。JSON 的键名保持英文不变。
+
 题型: {qtype}  (single_choice=单选4选项 / multiple_response=多选2-4项 / short_answer=简答)
 难度: {difficulty}
    · basic: 考查术语/事实再认,题干指向明确
