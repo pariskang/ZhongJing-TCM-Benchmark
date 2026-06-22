@@ -428,6 +428,28 @@ def mock_completion(prompt: str, model: str = "mock") -> str:
             "     · 常见误区: 忽略舌脉。"
         )
 
+    # 2b) T1 counterfactual-pair prompt (also contains 源文本) -> a flipped pair.
+    if "反事实最小对" in p:
+        return json.dumps(
+            {
+                "cf_feature": "舌脉",
+                "base_value": "舌淡胖、苔白滑，脉沉迟",
+                "cf_value": "舌红、苔黄腻，脉滑数",
+                "options": {
+                    "A": "脾胃虚寒证",
+                    "B": "脾胃湿热证",
+                    "C": "肝郁气滞证",
+                    "D": "气血两虚证",
+                },
+                "base_stem": "患者男，48岁，脘腹冷痛、喜温喜按、纳呆便溏，舌淡胖、苔白滑，脉沉迟。其证型最宜辨为？",
+                "base_answer": ["A"],
+                "variant_stem": "患者男，48岁，脘腹冷痛、喜温喜按、纳呆便溏，舌红、苔黄腻，脉滑数。其证型最宜辨为？",
+                "cf_answer": ["B"],
+                "explanation": "舌脉由虚寒之象转为湿热之象时，证型相应由脾胃虚寒翻转为脾胃湿热。",
+            },
+            ensure_ascii=False,
+        )
+
     # 3) Question-generation prompt -> schema-valid question JSON.
     if ("源文本" in p) or ('"stem"' in p):
         # Parse the *requested* type from the "题型: X" line (the instructions

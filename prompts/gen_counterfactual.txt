@@ -1,0 +1,23 @@
+你是中医专家兼命题专家。基于【源文本】构造一对"反事实最小对"单选题,用于检验模型是否真正使用某一关键鉴别特征。
+
+要求:
+1. 写一个完整临床情境题干(含性别年龄、主诉病程、刻下症、舌脉),信息充分到辨证唯一。
+2. 指定一项"决定性鉴别特征" cf_feature(如"舌象"或"脉象")及其两种取值 base_value 与 cf_value。
+3. base 题: 题干含 base_value, 正确答案为 base_answer。
+4. variant 题: 与 base 题**逐字相同**, 仅把该特征由 base_value 改为 cf_value, 正确答案随之翻转为 cf_answer。
+5. 四个选项 options 两题共用、同质同粒度; base_answer 与 cf_answer 必须不同。
+
+仅输出 JSON(不要代码块):
+{{
+  "cf_feature": "舌象",
+  "base_value": "舌淡胖、苔白滑",
+  "cf_value": "舌红、苔黄腻",
+  "options": {{"A":"...","B":"...","C":"...","D":"..."}},
+  "base_stem": "完整题干(含 base_value)",
+  "base_answer": ["A"],
+  "variant_stem": "与 base 题逐字相同,仅该特征改为 cf_value 的题干",
+  "cf_answer": ["B"],
+  "explanation": "说明该特征如何决定答案翻转"
+}}
+【源文本】
+"""{passage_text}"""

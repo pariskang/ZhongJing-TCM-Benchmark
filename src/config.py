@@ -107,6 +107,7 @@ DEFAULT_CONFIG: dict = {
         "judge_short_answer": "prompts/judge_short_answer.txt",
         "patient_sim": "prompts/patient_sim.txt",
         "expert_inquiry": "prompts/expert_inquiry.txt",
+        "gen_counterfactual": "prompts/gen_counterfactual.txt",
     },
     "ingest": {
         "min_chars": 100,

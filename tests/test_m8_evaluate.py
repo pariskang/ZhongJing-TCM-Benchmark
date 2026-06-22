@@ -31,14 +31,20 @@ def test_parse_cjk_labels():
 
 
 def test_evaluate_invariance_structure_and_shuffle_bias(make_q):
-    # The mock always picks the first label (position bias) → shuffle drops it.
+    # The mock always picks the first label "A" (position bias).
     q = make_q(answer=["A"])
+    q.question_id = "inv-fixed"               # deterministic shuffle permutation
     rep = _ev().evaluate_invariance([q], perturbations=("shuffle", "cjk"))
     assert rep["base_accuracy"] == 1.0
     assert set(rep["perturbations"]) == {"shuffle", "cjk"}
-    # relabel keeps position → robust; shuffle moves the answer → mock fails it
+    # relabel preserves position → the position-biased mock stays correct
     assert rep["perturbations"]["cjk"]["consistency"] == 1.0
-    assert rep["perturbations"]["shuffle"]["accuracy_drop"] == 1.0
+    assert rep["perturbations"]["cjk"]["accuracy_drop"] == 0.0
+    # shuffle: correct iff the gold content happens to remain under key "A"
+    sq = shuffle_options(q, 0)
+    expected_drop = 0.0 if sq.options["A"] == q.options["A"] else 1.0
+    assert rep["perturbations"]["shuffle"]["accuracy_drop"] == expected_drop
+    assert rep["perturbations"]["shuffle"]["consistency"] == 1.0 - expected_drop
 
 
 def test_parse_explicit_refusal():

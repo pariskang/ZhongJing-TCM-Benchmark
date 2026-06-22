@@ -22,6 +22,7 @@ prompts:
   judge_short_answer: prompts/judge_short_answer.txt
   patient_sim: prompts/patient_sim.txt          # T2 patient simulator
   expert_inquiry: prompts/expert_inquiry.txt    # T2 expert (model under test)
+  gen_counterfactual: prompts/gen_counterfactual.txt  # T1 counterfactual minimal pair
 
 # ---- M1 ingest -------------------------------------------------------------
 ingest:
