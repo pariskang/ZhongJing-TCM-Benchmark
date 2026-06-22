@@ -46,6 +46,13 @@ The pipeline maps 1:1 to the paper: BERTopic (Eq. 1–3), 9-category labelling
 dynamic-programming token segmentation (Algorithm 1). See the formula↔code index
 in [`docs/PIPELINE.md`](docs/PIPELINE.md).
 
+The benchmark's evaluation standard — the POMDP view, the T0–T6 fidelity ladder
+and the four orthogonal scoring layers (result / process / safety / interaction),
+with each requirement mapped to a module and an implemented/planned status — is in
+[`docs/CLINICAL_EVAL_FRAMEWORK.md`](docs/CLINICAL_EVAL_FRAMEWORK.md). The v5
+generation prompt already enforces complete disease-course case stems and
+hard-to-separate options from that standard.
+
 ## Categories
 
 The dataset covers 9 major TCM domains:
@@ -62,11 +69,15 @@ The dataset covers 9 major TCM domains:
 
 ## Usage
 
+New to the repo? [`docs/RUNNING_REAL_MODELS.md`](docs/RUNNING_REAL_MODELS.md) is
+the copy-paste guide for switching from the offline mock to a real LLM endpoint
+(OpenAI / MiniMax / any OpenAI-compatible server) and feeding in your own corpus.
+
 ### Run the pipeline
 
 ```bash
 make install                            # dependencies (see requirements.txt)
-make test                               # 54 unit tests, fully offline
+make test                               # 144 unit tests, fully offline
 ZHONGJING_LLM_PROVIDER=mock make demo   # run M1→M7 with the offline mock LLM
 
 # real generation / evaluation
@@ -74,6 +85,20 @@ export OPENAI_API_KEY=sk-...            # any OpenAI-compatible endpoint works
 python run.py pipeline                  # M1..M7
 python run.py evaluate --model gpt-4o   # M8
 python run.py stats                     # M9 (ANOVA, regression, DP segmentation)
+
+# robustness & interactive (clinical-eval framework — docs/CLINICAL_EVAL_FRAMEWORK.md)
+python run.py invariance --model gpt-4o    # option-order & label-symbol (A–D↔甲乙丙丁/1–4) invariance
+python run.py counterfactual               # T1 counterfactual minimal pairs (flip one 四诊 → answer flips)
+python run.py consult --model gpt-4o       # T2 active-inquiry consultation vs the patient simulator
+python run.py process --model gpt-4o       # L2 step-level process preference + result/process gate
+python run.py rubric --model gpt-4o        # L3/L4 weighted rubric grading + judge meta-evaluation
+python run.py abstain --model gpt-4o       # A@D abstention probes (abstain iff info insufficient)
+python run.py tools --model gpt-4o         # T3 tool-use agent (contraindication checks; tool-grounding)
+python run.py episode --model gpt-4o       # T4 longitudinal episode (follow-up & adjustment; 同病异治 trajectory)
+python run.py mdt --model gpt-4o           # T5 multi-agent MDT (collaboration, disagreement, group-vs-individual)
+python run.py dialogue --model gpt-4o      # T6 multi-turn rubric dialogue (consensus rubric, hard subset)
+python run.py calibrate --model gpt-4o     # confidence calibration (ECE / Brier / reliability bins)
+python run.py judges --model gpt-4o        # heterogeneous / tool-grounded judging (breaks shared blind spots)
 ```
 
 ### Batch generation with MiniMax (concurrent + resumable)
@@ -85,7 +110,14 @@ export MINIMAX_API_KEY=...                          # https://api.minimaxi.com/v
 export ZHONGJING_LLM_PROVIDER=minimax
 python run.py generate --concurrency 8              # parallel question generation
 python run.py generate --resume                     # re-run to fill only missing items
+python run.py generate --no-progress                # hide the live progress bar
 ```
+
+Generation is **real-time** on both ends: a live `tqdm` bar advances per passage
+(percentage / speed / running question count), and each passage's questions are
+flushed to `data/interim/questions_raw.jsonl` the instant it completes — so the
+file grows as you watch and an interrupted run loses nothing (that on-disk
+checkpoint is exactly what `--resume` reads back).
 
 The output cap defaults to `llm.max_tokens: 8192` (in `configs/pipeline.yaml`),
 which leaves room for long step-by-step explanations and short-answer references;
@@ -96,12 +128,12 @@ For a one-click cloud run, open the notebook in Google Colab:
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pariskang/ZhongJing-TCM-Benchmark/blob/main/notebooks/colab_minimax_generation.ipynb)
 
 [`notebooks/colab_minimax_generation.ipynb`](notebooks/colab_minimax_generation.ipynb)
-drives the full M1→M9 pipeline with MiniMax concurrency and checkpoint/resume
-(persisted to Google Drive across runtime disconnects). Step 4 exposes
-`MAX_TOKENS` (default 8192), `MAX_CONCURRENCY` and the model name; step 6 reads
-`.txt`, `.html` and `.docx` documents straight from a Google Drive folder (e.g.
-`/content/drive/MyDrive/zhongjing-tcm-benchmark/yichengyoudao`) and parses messy
-filenames such as `[公众号] - 2023-03-10 标题.docx` automatically.
+drives the full M1→M9 pipeline with MiniMax concurrency, a live progress bar and
+checkpoint/resume (persisted to Google Drive across runtime disconnects). Step 4
+exposes `MAX_TOKENS` (default 8192), `MAX_CONCURRENCY` and the model name; step 6
+reads `.txt`, `.html` and `.docx` documents straight from a Google Drive folder
+(e.g. `/content/drive/MyDrive/zhongjing-tcm-benchmark/yichengyoudao`) and parses
+messy filenames such as `[公众号] - 2023-03-10 标题.docx` automatically.
 
 ### Load the generated questions
 

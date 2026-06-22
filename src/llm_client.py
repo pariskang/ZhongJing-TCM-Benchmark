@@ -39,11 +39,45 @@ _log = get_logger("llm_client")
 _FENCE_RE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
 
 
+def _parse_one(cand: str):
+    """Try strict JSON then a Python-literal parse; return a dict or ``None``."""
+    if not cand:
+        return None
+    try:
+        return json.loads(cand)
+    except Exception:
+        try:
+            obj = ast.literal_eval(cand)
+            return obj if isinstance(obj, dict) else None
+        except Exception:
+            return None
+
+
+def _repair_json(cand: str):
+    """Repair malformed JSON with the optional ``json-repair`` lib (else ``None``).
+
+    Handles the usual LLM JSON breakage — trailing commas, unquoted keys,
+    truncated/missing braces, smart quotes, stray prose — that the strict parsers
+    above reject.
+    """
+    if not cand:
+        return None
+    try:
+        from json_repair import repair_json  # type: ignore
+
+        obj = repair_json(cand, return_objects=True)
+        return obj if isinstance(obj, dict) else None
+    except Exception:  # pragma: no cover - optional dep / unrepairable
+        return None
+
+
 def extract_json(text: str) -> dict:
     """Best-effort parse of a JSON object out of an LLM response.
 
-    Handles ```json fences, leading/trailing prose and single-quoted dicts.
-    Raises ``ValueError`` if nothing parseable is found.
+    Tries, in order: ```json fences, the greedy outermost ``{...}`` span, and the
+    whole string — first with strict JSON / Python-literal parsing, then with the
+    ``json-repair`` library as a last resort.  Raises ``ValueError`` if nothing
+    parseable is found.
     """
     if text is None:
         raise ValueError("empty LLM response")
@@ -58,15 +92,15 @@ def extract_json(text: str) -> dict:
     candidates.append(text.strip())
 
     for cand in candidates:
-        try:
-            return json.loads(cand)
-        except Exception:
-            try:
-                obj = ast.literal_eval(cand)
-                if isinstance(obj, dict):
-                    return obj
-            except Exception:
-                continue
+        obj = _parse_one(cand)
+        if obj is not None:
+            return obj
+
+    # Last resort: repair the most JSON-like candidate(s).
+    for cand in candidates:
+        obj = _repair_json(cand)
+        if obj is not None:
+            return obj
     raise ValueError(f"Could not extract JSON from response: {text[:200]!r}")
 
 
@@ -365,14 +399,98 @@ def mock_completion(prompt: str, model: str = "mock") -> str:
             ensure_ascii=False,
         )
 
+    # 1b) T2 expert-inquiry prompt -> a JSON action (ask 主症 → 舌 → 脉 → diagnose).
+    if "接诊医生" in p:
+        convo = p.rsplit("【对话】", 1)[-1]
+        if "部位" not in convo:
+            q = "请问主要不适的部位和性质如何？还有哪些伴随症状？"
+        elif "舌" not in convo:
+            q = "请问舌象如何？"
+        elif "脉" not in convo:
+            q = "请问脉象如何？"
+        else:
+            return json.dumps({"action": "diagnose", "answer": "（mock 辨证，离线占位）"}, ensure_ascii=False)
+        return json.dumps({"action": "ask", "query": q}, ensure_ascii=False)
+
+    # 0b) Confidence-elicitation prompt -> first option label + an over-confident 0.9.
+    if ("置信度" in p) and ('"answer"' in p):
+        tail = p.rsplit("题目", 1)[-1] if "题目" in p else p
+        lm = re.search(r"(?m)^\s*([A-D甲乙丙丁戊己1-6])[).、．。:：]\s*\S", tail)
+        label = lm.group(1) if lm else "A"
+        return json.dumps({"answer": [label], "confidence": 0.9}, ensure_ascii=False)
+
+    # 0c) T5 MDT specialty agent -> vote the first option label (homogeneous panel).
+    if "多学科会诊" in p:
+        tail = p.rsplit("选项", 1)[-1] if "选项" in p else p
+        lm = re.search(r"(?m)^\s*([A-D甲乙丙丁戊己1-6])[).、．。:：]\s*\S", tail)
+        label = lm.group(1) if lm else "A"
+        return json.dumps(
+            {"vote": [label], "confidence": 0.7, "rationale": "（mock）本专科意见"},
+            ensure_ascii=False,
+        )
+
+    # 1a) T3 tool-use agent -> call the contraindication checker, then ground the answer.
+    if ("中医临床智能体" in p) and ("可用工具" in p):
+        convo = p.rsplit("【历史】", 1)[-1]
+        if "工具结果" not in convo:                       # not yet consulted a tool
+            task = p.split("任务:", 1)[-1].split("可用工具", 1)[0]
+            m_rx = re.search(r"[:：]\s*([^。\n]*(?:、[^。\n、]+)+)", task)
+            herbs = [h.strip() for h in m_rx.group(1).split("、")] if m_rx else []
+            return json.dumps(
+                {"action": "call_tool", "tool": "contraindication_check", "args": {"herbs": herbs}},
+                ensure_ascii=False,
+            )
+        conflict = ('"conflict": true' in convo.lower()) or ('"conflict":true' in convo.lower())
+        return json.dumps({"action": "final", "answer": "有禁忌" if conflict else "安全"}, ensure_ascii=False)
+
+    # 1c) L2 step-PRM preference prompt -> pick the sounder next action.
+    if ("更优" in p) and ("候选A" in p):
+        a = re.search(r"候选A[:：]\s*(.+)", p)
+        b = re.search(r"候选B[:：]\s*(.+)", p)
+        ta = a.group(1).strip() if a else ""
+        tb = b.group(1).strip() if b else ""
+        good = ("追问", "采集", "判别", "四诊", "辨证", "据此")
+        bad = ("立即", "尚未", "未问", "直接判定", "已问", "已采集", "无关", "寒暄", "重复")
+        sa = sum(g in ta for g in good) - sum(x in ta for x in bad)
+        sb = sum(g in tb for g in good) - sum(x in tb for x in bad)
+        return json.dumps({"better": "A" if sa >= sb else "B"}, ensure_ascii=False)
+
     # 2) STAGER evaluation prompt -> structured answer block.
     if ("[Answer]" in p) or ("答案选择" in p):
+        # Label-aware: answer the first option label (A–D / 甲乙丙丁 / 1–4) that
+        # appears in the question block (after "题目:"), so option-order / symbol
+        # perturbation demos run coherently offline.
+        tail = p.rsplit("题目", 1)[-1] if "题目" in p else p
+        lm = re.search(r"(?m)^\s*([A-D甲乙丙丁戊己1-6])[).、．。:：]\s*\S", tail)
+        label = lm.group(1) if lm else "A"
         return (
-            "1. 答案选择\n   - [Answer] A\n"
+            f"1. 答案选择\n   - [Answer] {label}\n"
             "2. 详细分析\n   - [Analysis]\n"
             "     · 理论依据: （mock）依据脏腑辨证。\n"
             "     · 关键要点: 抓主症、辨病位病性。\n"
             "     · 常见误区: 忽略舌脉。"
+        )
+
+    # 2b) T1 counterfactual-pair prompt (also contains 源文本) -> a flipped pair.
+    if "反事实最小对" in p:
+        return json.dumps(
+            {
+                "cf_feature": "舌脉",
+                "base_value": "舌淡胖、苔白滑，脉沉迟",
+                "cf_value": "舌红、苔黄腻，脉滑数",
+                "options": {
+                    "A": "脾胃虚寒证",
+                    "B": "脾胃湿热证",
+                    "C": "肝郁气滞证",
+                    "D": "气血两虚证",
+                },
+                "base_stem": "患者男，48岁，脘腹冷痛、喜温喜按、纳呆便溏，舌淡胖、苔白滑，脉沉迟。其证型最宜辨为？",
+                "base_answer": ["A"],
+                "variant_stem": "患者男，48岁，脘腹冷痛、喜温喜按、纳呆便溏，舌红、苔黄腻，脉滑数。其证型最宜辨为？",
+                "cf_answer": ["B"],
+                "explanation": "舌脉由虚寒之象转为湿热之象时，证型相应由脾胃虚寒翻转为脾胃湿热。",
+            },
+            ensure_ascii=False,
         )
 
     # 3) Question-generation prompt -> schema-valid question JSON.

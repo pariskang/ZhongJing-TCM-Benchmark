@@ -7,7 +7,41 @@ presentation), and the prompt is revised accordingly.
 
 ## gen_question
 
-### v3 (current)
+### v5 (current)
+- **Complete disease course for case stems.** Clinical/case stems must now lay
+  out the full 发病经过 — sex·age, chief complaint·course (onset, trigger),
+  evolution (aggravating/relieving factors, prior treatment & response), current
+  symptom cluster, **tongue and pulse (mandatory)**, and relevant history — with
+  enough information that the differentiation has a *unique* solution. Mirrors the
+  evaluation framework's "complete information / sequential-reveal" principle
+  (see `docs/CLINICAL_EVAL_FRAMEWORK.md`, tiers T1/T4).
+- **Hard-to-separate options.** Distractors must be *highly confusable* near
+  differentials that cannot be told apart by a single symptom or surface
+  impression — separable only by integrating several cues with rigorous logic.
+- **Decisive discriminating feature (counterfactual-sensitive).** The stem must
+  embed one key feature (a tongue/pulse sign or accompanying symptom) such that
+  flipping it flips the correct answer, and removing it makes the item
+  multi-answer — guaranteeing the options are not trivially separable.
+- **Safety awareness** (十八反/十九畏, pregnancy contraindications, toxic-dose,
+  red-flag referral) is to be exercised as a correct/distractor consideration.
+
+### v4
+- **Self-contained, complete stems.** The stem must be answerable from itself
+  alone (no "根据上文/源文本" references, no dangling premises); clinical/case
+  stems must spell out sex·age, chief complaint·duration, core symptoms, tongue
+  and pulse, plus relevant history — so the syndrome differentiation has a
+  sufficient *and unique* basis (kills the "信息不全 / multi-answer" failure mode).
+- **High-discrimination options.** Options must be homogeneous and parallel
+  (all syndromes, or all formulas, or all therapies/acupoints), similar length,
+  no "以上都对/都不对"; distractors are *near-miss* plausible errors drawn from
+  confusable syndromes / formulas / common clinical pitfalls, wrong only on
+  careful analysis, with no surface cues that give away the key.
+- Difficulty-matched stem construction (basic direct / intermediate reasoning
+  chain / advanced multi-step clinical scenario).
+- `explanation` must now justify *why each distractor is wrong*; short-answer
+  `reference_answer` must list complete, itemised scoring points.
+
+### v3
 - Added the explicit rule: *clinical questions must contain a complete patient
   symptom/sign description* — directly targets the DTQF completeness filter (M6).
 - Required strictly source-grounded answers (no outside knowledge).

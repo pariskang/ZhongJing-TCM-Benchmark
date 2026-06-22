@@ -65,14 +65,18 @@ def generate(
     limit: int = typer.Option(0, help="Cap the number of passages (0 = all)."),
     resume: bool = typer.Option(True, help="Resume from existing questions_raw.jsonl."),
     concurrency: int = typer.Option(0, help="Parallel passages in flight (0 = config)."),
+    progress: bool = typer.Option(True, help="Show the live tqdm progress bar."),
 ) -> None:
     """M5 — LLM question generation (single/multiple/short × 3 difficulties).
 
     Resumable & concurrent: re-run after a disconnect to fill only what's missing.
+    Progress is shown live and each passage is stored the moment it completes.
     """
     import m5_generate
 
-    m5_generate.run(limit=limit or None, resume=resume, concurrency=concurrency or None)
+    m5_generate.run(
+        limit=limit or None, resume=resume, concurrency=concurrency or None, progress=progress
+    )
 
 
 @app.command()
@@ -100,6 +104,111 @@ def evaluate(model: str = typer.Option("", help="Model name (default: all in con
         m8_evaluate.run(model)
     else:
         m8_evaluate.run_all()
+
+
+@app.command()
+def invariance(model: str = typer.Option("", help="Model name (default: all in config).")) -> None:
+    """M8 robustness — option-order & label-symbol (A–D↔甲乙丙丁/1–4) invariance."""
+    import m8_evaluate
+
+    models = [model] if model else m8_evaluate.load_config().get("evaluate.models", [])
+    for m in models:
+        m8_evaluate.run_invariance(m)
+
+
+@app.command()
+def consult(
+    model: str = typer.Option("mock", help="Expert model under test."),
+    max_turns: int = typer.Option(8, help="Max inquiry turns before forcing a diagnosis."),
+) -> None:
+    """T2 — active-inquiry consultation against the patient simulator (POMDP)."""
+    import t2_patient_sim
+
+    t2_patient_sim.run(model=model, max_turns=max_turns)
+
+
+@app.command()
+def counterfactual(
+    model: str = typer.Option("", help="Generation model (default: config)."),
+    limit: int = typer.Option(0, help="Cap passages (0 = all)."),
+) -> None:
+    """T1 — generate counterfactual minimal pairs (flip one 四诊 feature → answer flips)."""
+    import t1_counterfactual
+
+    t1_counterfactual.run(model=model or t1_counterfactual.load_config().get("generate.model", "gpt-4o"),
+                          limit=limit or None)
+
+
+@app.command()
+def process(model: str = typer.Option("mock", help="Model under test / process judge.")) -> None:
+    """L2 — step-level process preference (PRM) + result/process gate."""
+    import l2_process
+
+    l2_process.run(model=model)
+
+
+@app.command()
+def rubric(model: str = typer.Option("mock", help="Rubric judge model.")) -> None:
+    """L3/L4 — weighted axis-tagged rubric grading + judge meta-evaluation."""
+    import l3l4_rubric
+
+    l3l4_rubric.run(model=model)
+
+
+@app.command()
+def abstain(model: str = typer.Option("mock", help="Model under test.")) -> None:
+    """Abstention probes — A@D: abstain iff information is insufficient."""
+    import abstention
+
+    abstention.run(model=model)
+
+
+@app.command()
+def tools(model: str = typer.Option("mock", help="Tool-use agent under test.")) -> None:
+    """T3 — tool-use agent (contraindication/dose checks; tool-grounding contradiction)."""
+    import t3_tools
+
+    t3_tools.run(model=model)
+
+
+@app.command()
+def episode(model: str = typer.Option("mock", help="Model under test.")) -> None:
+    """T4 — longitudinal episode (follow-up & adjustment; trajectory consistency)."""
+    import t4_longitudinal
+
+    t4_longitudinal.run(model=model)
+
+
+@app.command()
+def mdt(model: str = typer.Option("mock", help="Base model for the specialty panel.")) -> None:
+    """T5 — multi-agent MDT (collaboration, disagreement, group-vs-individual)."""
+    import t5_mdt
+
+    t5_mdt.run(model=model)
+
+
+@app.command()
+def dialogue(model: str = typer.Option("mock", help="Model under test.")) -> None:
+    """T6 — open-ended multi-turn rubric dialogue (consensus rubric, hard subset)."""
+    import t6_dialogue
+
+    t6_dialogue.run(model=model)
+
+
+@app.command()
+def calibrate(model: str = typer.Option("mock", help="Model under test.")) -> None:
+    """Confidence calibration — ECE / Brier / reliability bins."""
+    import calibration
+
+    calibration.run(model=model)
+
+
+@app.command()
+def judges(model: str = typer.Option("mock", help="Base solver/judge model.")) -> None:
+    """Heterogeneous / tool-grounded judging — break shared blind spots."""
+    import judges as _judges
+
+    _judges.run(model=model)
 
 
 @app.command()

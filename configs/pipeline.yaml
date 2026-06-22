@@ -15,11 +15,20 @@ lexicons:
   category_anchors: lexicons/category_anchors.yaml
 
 prompts:
-  gen_question: prompts/gen_question.v3.txt
+  gen_question: prompts/gen_question.v5.txt
   stager_eval: prompts/stager_eval.txt
   judge_quality: prompts/judge_quality.txt
   judge_validity: prompts/judge_validity.txt
   judge_short_answer: prompts/judge_short_answer.txt
+  patient_sim: prompts/patient_sim.txt          # T2 patient simulator
+  expert_inquiry: prompts/expert_inquiry.txt    # T2 expert (model under test)
+  gen_counterfactual: prompts/gen_counterfactual.txt  # T1 counterfactual minimal pair
+  prm_step: prompts/prm_step.txt                # L2 step-level process preference
+  rubric_grade: prompts/rubric_grade.txt        # L3/L4 rubric grading judge
+  tool_agent: prompts/tool_agent.txt            # T3 tool-use agent
+  mdt_agent: prompts/mdt_agent.txt              # T5 MDT specialty agent
+  dialogue: prompts/dialogue.txt                # T6 multi-turn dialogue responder
+  confidence_eval: prompts/confidence_eval.txt  # confidence calibration (ECE)
 
 # ---- M1 ingest -------------------------------------------------------------
 ingest:
@@ -53,7 +62,7 @@ topic:
 generate:
   model: gpt-4o
   max_passage_chars: 1500
-  prompt_version: v3
+  prompt_version: v5
 
 # ---- M6 DTQF dynamic filtering --------------------------------------------
 dtqf:
@@ -79,6 +88,7 @@ evaluate:
   n_runs: 3               # repeated runs per question (majority vote)
   models:
     - gpt-4o
+  perturbations: [shuffle, cjk, numeric]   # option-order / label-symbol invariance
 
 # ---- M9 statistics ---------------------------------------------------------
 stats:
