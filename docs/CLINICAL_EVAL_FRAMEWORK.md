@@ -45,7 +45,7 @@ endless probing), **action validity** (no tool-grounding hallucination),
 | **T1** | Sequential information unlocking | differential under staged info | ✅ `src/t1_counterfactual.py` — counterfactual minimal pairs (flip one 四诊 feature → answer flips; pair-accuracy + flip-rate) and cumulative information-staging (information efficiency); `run.py counterfactual`. v5 prompt also mandates a complete disease course |
 | **T2** | Active inquiry (patient simulator) | question quality, info value, timely closure, abstention | ✅ `src/t2_patient_sim.py` — zero-leak `PatientSim`, ask→answer loop, scoring (turns / key-feature recall / premature closure / abstention); `run.py consult` |
 | **T3** | Tool-use agent | order test / retrieve / check contraindication; tool-grounding | ✅ `src/t3_tools.py` — deterministic 十八反/十九畏 + dose checkers, a call→result agent loop, and **tool-grounding contradiction detection** (answer vs observed tool result); `run.py tools` |
-| **T4** | Longitudinal episode (follow-up) | adjust plan from outcome feedback; trajectory consistency | ⬜ planned |
+| **T4** | Longitudinal episode (follow-up) | adjust plan from outcome feedback; trajectory consistency | ✅ `src/t4_longitudinal.py` — outcome-dependent evolution (wrong Tx → 入里化热), per-visit + trajectory scoring (resolution / adverse transitions / adjustment recall / clean resolution); `run.py episode` |
 | **T5** | Multi-agent / MDT | collaboration, disagreement resolution, escalation | ⬜ planned |
 | **T6** | Open rubric dialogue | communication, empathy, safety, completeness | ⬜ planned (HealthBench-style) |
 
@@ -58,9 +58,10 @@ TCM epistemology fits the POMDP frame natively:
 
 - **辨证 = active multimodal acquisition.** 四诊合参 is choosing observation
   modalities to disambiguate the syndrome. *(T2/§Roadmap)*
-- **同病异治 as a manifold, lifted to trajectories.** Not "is this treatment on
-  the valid set?" but "does the treatment migrate correctly as the syndrome
-  evolves (e.g. 风寒误治入里化热 → 及时转清热)?" *(T4)*
+- **同病异治 as a manifold, lifted to trajectories.** ✅ `t4_longitudinal` —
+  the syndrome evolves with the treatment chosen (风寒误治入里化热 → 及时转清热),
+  scoring whether the plan migrates correctly across visits (`adjustment_recall`,
+  `clean_resolution`), not just a single-point valid-set membership.
 - **Counterfactual minimal pairs.** Fix the vignette, flip one 四诊 feature
   (舌淡↔舌红) → the correct syndrome/treatment must flip. **v5 already requires a
   decisive discriminating feature with exactly this property** 🟡.
@@ -158,7 +159,10 @@ F. Controls: judge meta-eval, perturbation battery, abstention calibration,
   with the M8 refusal detector → A@D (recall) + over-abstention rate. `run.py abstain`.
 - [x] **T3 tool-use agent (`src/t3_tools.py`).** 十八反/十九畏 + dose checkers, a
   call→result loop, and tool-grounding contradiction detection. `run.py tools`.
-- [ ] **T4–T6** (longitudinal episode, MDT, open rubric dialogue), ECE/reliability
+- [x] **T4 longitudinal episode (`src/t4_longitudinal.py`).** Outcome-dependent
+  syndrome evolution; trajectory scoring (resolution / adverse transitions /
+  adjustment recall / clean resolution). `run.py episode`.
+- [ ] **T5–T6** (MDT multi-agent, open rubric dialogue), ECE/reliability
   calibration, and heterogeneous/tool-grounded judges.
 
 Contributions are welcome against any roadmap item; open an issue referencing

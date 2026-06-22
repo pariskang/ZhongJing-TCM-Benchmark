@@ -172,6 +172,14 @@ def tools(model: str = typer.Option("mock", help="Tool-use agent under test.")) 
 
 
 @app.command()
+def episode(model: str = typer.Option("mock", help="Model under test.")) -> None:
+    """T4 — longitudinal episode (follow-up & adjustment; trajectory consistency)."""
+    import t4_longitudinal
+
+    t4_longitudinal.run(model=model)
+
+
+@app.command()
 def stats() -> None:
     """M9 — ANOVA + Tukey + regression + DP token segmentation."""
     import m9_stats
