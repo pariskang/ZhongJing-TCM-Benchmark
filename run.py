@@ -107,6 +107,27 @@ def evaluate(model: str = typer.Option("", help="Model name (default: all in con
 
 
 @app.command()
+def invariance(model: str = typer.Option("", help="Model name (default: all in config).")) -> None:
+    """M8 robustness — option-order & label-symbol (A–D↔甲乙丙丁/1–4) invariance."""
+    import m8_evaluate
+
+    models = [model] if model else m8_evaluate.load_config().get("evaluate.models", [])
+    for m in models:
+        m8_evaluate.run_invariance(m)
+
+
+@app.command()
+def consult(
+    model: str = typer.Option("mock", help="Expert model under test."),
+    max_turns: int = typer.Option(8, help="Max inquiry turns before forcing a diagnosis."),
+) -> None:
+    """T2 — active-inquiry consultation against the patient simulator (POMDP)."""
+    import t2_patient_sim
+
+    t2_patient_sim.run(model=model, max_turns=max_turns)
+
+
+@app.command()
 def stats() -> None:
     """M9 — ANOVA + Tukey + regression + DP token segmentation."""
     import m9_stats

@@ -20,6 +20,8 @@ prompts:
   judge_quality: prompts/judge_quality.txt
   judge_validity: prompts/judge_validity.txt
   judge_short_answer: prompts/judge_short_answer.txt
+  patient_sim: prompts/patient_sim.txt          # T2 patient simulator
+  expert_inquiry: prompts/expert_inquiry.txt    # T2 expert (model under test)
 
 # ---- M1 ingest -------------------------------------------------------------
 ingest:
@@ -79,6 +81,7 @@ evaluate:
   n_runs: 3               # repeated runs per question (majority vote)
   models:
     - gpt-4o
+  perturbations: [shuffle, cjk, numeric]   # option-order / label-symbol invariance
 
 # ---- M9 statistics ---------------------------------------------------------
 stats:

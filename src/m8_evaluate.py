@@ -8,6 +8,8 @@ selected).  Per-question records (with output-token lengths) feed M9.
 """
 from __future__ import annotations
 
+import json
+import random
 import re
 from collections import Counter
 from typing import Optional
@@ -16,7 +18,7 @@ from config import Config, load_config
 from llm_client import call_text
 from m7_assemble import _encode_len
 from schemas import Category, EvalRecord, Question
-from utils import get_logger, load_jsonl_as, resolve_path, save_jsonl
+from utils import ensure_parent, get_logger, load_jsonl_as, resolve_path, save_jsonl
 
 _log = get_logger("m8_evaluate")
 
@@ -25,6 +27,57 @@ REFUSAL_PAT = re.compile(
     r"cannot determine|insufficient information|not enough information",
     re.IGNORECASE,
 )
+
+# --------------------------------------------------------------------------- #
+# Robustness perturbations: option-order & label-symbol invariance              #
+# --------------------------------------------------------------------------- #
+
+#: Alternative option-label alphabets for symbol-invariance testing.
+LABEL_SCHEMES: dict[str, list[str]] = {
+    "latin": ["A", "B", "C", "D", "E", "F"],
+    "cjk": ["甲", "乙", "丙", "丁", "戊", "己"],
+    "numeric": ["1", "2", "3", "4", "5", "6"],
+}
+
+
+def shuffle_options(q: Question, seed: int = 0) -> Question:
+    """Return a copy of *q* with option **contents** permuted, answer remapped.
+
+    Display keys (A–D) are kept; only which content sits under each key changes,
+    so a label-order-robust model should pick the same content.
+    """
+    keys = list(q.options.keys())
+    contents = [q.options[k] for k in keys]
+    n = len(keys)
+    if n < 2:
+        return q.model_copy(deep=True)
+    perm = list(range(n))
+    random.Random(f"{q.question_id}|{seed}").shuffle(perm)
+    new_options = {keys[p]: contents[perm[p]] for p in range(n)}
+    old_index = {k: j for j, k in enumerate(keys)}
+    new_answer = sorted(keys[perm.index(old_index[a])] for a in q.answer if a in old_index)
+    return q.model_copy(update={"options": new_options, "answer": new_answer}, deep=True)
+
+
+def relabel_options(q: Question, scheme: str = "cjk") -> Question:
+    """Return a copy of *q* with option labels remapped to *scheme* (e.g. 甲乙丙丁)."""
+    syms = LABEL_SCHEMES[scheme]
+    keys = list(q.options.keys())
+    if len(syms) < len(keys):
+        return q.model_copy(deep=True)
+    keymap = {k: syms[i] for i, k in enumerate(keys)}
+    new_options = {keymap[k]: v for k, v in q.options.items()}
+    new_answer = [keymap[a] for a in q.answer if a in keymap]
+    return q.model_copy(update={"options": new_options, "answer": new_answer}, deep=True)
+
+
+def perturb(q: Question, kind: str, seed: int = 0) -> Question:
+    """Dispatch a perturbation by name: ``shuffle`` | ``cjk`` | ``numeric`` | ``latin``."""
+    if kind == "shuffle":
+        return shuffle_options(q, seed)
+    if kind in LABEL_SCHEMES:
+        return relabel_options(q, kind)
+    raise ValueError(f"unknown perturbation: {kind!r}")
 
 
 class ModelEvaluator:
@@ -48,17 +101,26 @@ class ModelEvaluator:
         opts = "\n".join(f"{k}. {v}" for k, v in q.options.items())
         return self.tmpl.format(question=f"{q.stem}\n{opts}")
 
-    def parse(self, raw: str) -> dict:
+    def parse(self, raw: str, labels=("A", "B", "C", "D")) -> dict:
+        """Parse the ``[Answer]`` block, scanning for any of *labels*.
+
+        *labels* are the option keys of the question under test, so this works
+        for Latin (A–D), CJK (甲乙丙丁) or numeric (1–4) symbol schemes.
+        """
         if not raw or REFUSAL_PAT.search(raw):
             return {"refused": True, "pred": []}
-        m = re.search(r"\[Answer\]\s*([A-D，,、\s]+)", raw)
-        pred = re.findall(r"[A-D]", m.group(1)) if m else []
-        return {"refused": not pred, "pred": sorted(set(pred))}
+        m = re.search(r"\[Answer\]\s*([^\n]*)", raw)
+        if not m:
+            return {"refused": True, "pred": []}  # no answer block → implicit refusal
+        seg = m.group(1)
+        pred = sorted({lab for lab in labels if lab in seg})
+        return {"refused": not pred, "pred": pred}
 
     # -- single choice question ---------------------------------------------- #
     def eval_one(self, q: Question) -> EvalRecord:
+        labels = list(q.options.keys())
         raws = [call_text(self.build_prompt(q), self.model) for _ in range(self.n_runs)]
-        runs = [self.parse(r) for r in raws]
+        runs = [self.parse(r, labels=labels) for r in raws]
         keys = [tuple(r["pred"]) for r in runs if not r["refused"]]
         refused = sum(r["refused"] for r in runs) > self.n_runs // 2
         pred = list(Counter(keys).most_common(1)[0][0]) if keys else []
@@ -170,6 +232,47 @@ class ModelEvaluator:
             metrics["short_answer_accuracy"] = round(sa_acc, 4)
         return metrics, rows
 
+    # -- robustness: order / symbol invariance ------------------------------- #
+    def evaluate_invariance(
+        self,
+        dataset: list[Question],
+        perturbations: tuple[str, ...] = ("shuffle", "cjk", "numeric"),
+        seed: int = 0,
+    ) -> dict:
+        """Compare predictions on original vs perturbed items.
+
+        A robust model should pick the **same option content** and keep the same
+        accuracy when options are shuffled or labels are relabelled (A–D↔甲乙丙丁
+        / 1–4).  Reports per-perturbation accuracy, accuracy drop and the
+        content-level consistency rate.
+        """
+        choice = [q for q in dataset if q.is_choice()]
+        if not choice:
+            return {"model": self.model, "n": 0}
+
+        base = {q.question_id: self.eval_one(q) for q in choice}
+        base_acc = sum(r.correct for r in base.values()) / len(choice)
+
+        out: dict = {"model": self.model, "n": len(choice), "base_accuracy": round(base_acc, 4),
+                     "perturbations": {}}
+        for kind in perturbations:
+            consistent = 0
+            correct = 0
+            for q in choice:
+                pq = perturb(q, kind, seed)
+                rec = self.eval_one(pq)
+                correct += rec.correct
+                base_content = {q.options[k] for k in base[q.question_id].pred if k in q.options}
+                pert_content = {pq.options[k] for k in rec.pred if k in pq.options}
+                consistent += base_content == pert_content
+            pacc = correct / len(choice)
+            out["perturbations"][kind] = {
+                "accuracy": round(pacc, 4),
+                "accuracy_drop": round(base_acc - pacc, 4),
+                "consistency": round(consistent / len(choice), 4),
+            }
+        return out
+
 
 def _load_dataset(cfg: Config) -> list[Question]:
     final = cfg.path("paths.final_dir")
@@ -195,6 +298,19 @@ def run(model: str, cfg: Optional[Config] = None) -> dict:
 def run_all(cfg: Optional[Config] = None) -> list[dict]:
     cfg = cfg or load_config()
     return [run(m, cfg) for m in cfg.get("evaluate.models", [])]
+
+
+def run_invariance(model: str, cfg: Optional[Config] = None) -> dict:
+    """Option-order / label-symbol invariance for one model → ``results/invariance_*.json``."""
+    cfg = cfg or load_config()
+    dataset = _load_dataset(cfg)
+    perts = tuple(cfg.get("evaluate.perturbations", ["shuffle", "cjk", "numeric"]))
+    report = ModelEvaluator(model, cfg).evaluate_invariance(dataset, perturbations=perts)
+    results = cfg.path("paths.results_dir")
+    out = ensure_parent(results / f"invariance_{_slug(model)}.json")
+    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    _log.info("invariance[%s] = %s", model, report.get("perturbations"))
+    return report
 
 
 def _slug(name: str) -> str:

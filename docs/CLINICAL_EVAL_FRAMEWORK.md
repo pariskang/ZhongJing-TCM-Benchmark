@@ -43,7 +43,7 @@ endless probing), **action validity** (no tool-grounding hallucination),
 |---|---|---|---|
 | **T0** | Static best-answer | knowledge breadth (anti-cheat anchor) | ✅ M1–M7 produce single/multiple/short across 9×3×3 |
 | **T1** | Sequential information unlocking | differential under staged info | 🟡 v5 prompt mandates a *complete disease course* + a decisive (counterfactual-sensitive) feature; explicit stage-reveal runtime ⬜ |
-| **T2** | Active inquiry (patient simulator) | question quality, info value, timely closure, abstention | ⬜ planned (see §Roadmap) |
+| **T2** | Active inquiry (patient simulator) | question quality, info value, timely closure, abstention | ✅ `src/t2_patient_sim.py` — zero-leak `PatientSim`, ask→answer loop, scoring (turns / key-feature recall / premature closure / abstention); `run.py consult` |
 | **T3** | Tool-use agent | order test / retrieve / check contraindication; tool-grounding | ⬜ planned |
 | **T4** | Longitudinal episode (follow-up) | adjust plan from outcome feedback; trajectory consistency | ⬜ planned |
 | **T5** | Multi-agent / MDT | collaboration, disagreement resolution, escalation | ⬜ planned |
@@ -94,9 +94,10 @@ weakest here.
 - **Judge reliability:** meta-evaluate the LLM-grader against physician labels
   (κ/concordance), mitigate shared blind spots with heterogeneous /
   tool-grounded judges. 🟡 (a short-answer LLM judge exists; meta-eval ⬜)
-- **Robustness battery:** bias injection + fairness gap, 四诊/lab noise,
-  paraphrase invariance, **option-order & label-symbol invariance**, sycophancy
-  probes. ⬜ (order/symbol invariance is low-cost — first to land)
+- **Robustness battery:** **option-order & label-symbol invariance** ✅
+  (`m8_evaluate.evaluate_invariance` / `run.py invariance` — shuffle + A–D↔甲乙丙丁
+  /1–4, reports accuracy drop & content-level consistency); bias injection +
+  fairness gap, 四诊/lab noise, paraphrase invariance, sycophancy probes ⬜.
 - **Abstention calibration:** A@D, premature-closure rate, ECE,
   missing-premise abstention. 🟡 (refusal detection exists)
 - **Contamination:** new-vs-old case performance gap, private held-out, dynamic
@@ -134,21 +135,21 @@ F. Controls: judge meta-eval, perturbation battery, abstention calibration,
 
 ## Roadmap (phased, mapped to modules)
 
-1. **T1 explicit staging + counterfactual pairs (extends M5).** Generate paired
-   items (flip one 四诊 feature → answer flips) and an `information_stages` field;
-   score information efficiency. *Foundation already in v5.*
-2. **Order/symbol-invariance perturbations (extends M8).** Shuffle options /
-   relabel A–D↔甲乙丙丁, report accuracy drop. *Low-cost, high-value.*
-3. **Abstention probes (extends M5/M8).** A small missing-premise set; reuse the
-   existing refusal detector to score A@D / premature-closure.
-4. **T2 patient simulator (new module).** A `PatientSim` over the existing
-   `LLMClient` holding the full vignette, answering only symptom-level facts
-   (no leakage), + an inquiry-efficiency / timely-closure scorer.
-5. **L2 process gate + step-PRM data (new).** Emit trajectories with one correct
-   and one plausible-wrong action (plus neutral negatives) for process scoring.
-6. **L3/L4 rubrics + judge meta-evaluation (new).** Weighted, axis-tagged,
-   multi-physician-consensus rubric items; calibrate the LLM judge against
-   physician labels.
+- [x] **Order/symbol-invariance perturbations (M8).** Shuffle options / relabel
+  A–D↔甲乙丙丁/1–4, report accuracy drop + content-level consistency.
+  `m8_evaluate.evaluate_invariance`, `run.py invariance`.
+- [x] **T2 patient simulator (`src/t2_patient_sim.py`).** Zero-leak `PatientSim`
+  over the existing `LLMClient`, ask→answer loop, and an inquiry-efficiency /
+  timely-closure / premature-closure / abstention scorer. `run.py consult`.
+- [ ] **T1 explicit staging + counterfactual pairs (extends M5).** Paired items
+  (flip one 四诊 feature → answer flips) + an `information_stages` field; score
+  information efficiency. *Foundation already in the v5 prompt.*
+- [ ] **Abstention probes (extends M5/M8).** A small missing-premise set; reuse
+  the refusal detector to score A@D / premature-closure on static items.
+- [ ] **L2 process gate + step-PRM data (new).** Emit trajectories with one
+  correct and one plausible-wrong action (plus neutral negatives).
+- [ ] **L3/L4 rubrics + judge meta-evaluation (new).** Weighted, axis-tagged,
+  multi-physician-consensus rubric items; calibrate the LLM judge vs physicians.
 
 Contributions are welcome against any roadmap item; open an issue referencing
 the tier/layer and the admission checklist above.

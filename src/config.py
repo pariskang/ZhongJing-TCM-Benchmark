@@ -105,6 +105,8 @@ DEFAULT_CONFIG: dict = {
         "judge_quality": "prompts/judge_quality.txt",
         "judge_validity": "prompts/judge_validity.txt",
         "judge_short_answer": "prompts/judge_short_answer.txt",
+        "patient_sim": "prompts/patient_sim.txt",
+        "expert_inquiry": "prompts/expert_inquiry.txt",
     },
     "ingest": {
         "min_chars": 100,

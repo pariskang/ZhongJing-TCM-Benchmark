@@ -399,10 +399,29 @@ def mock_completion(prompt: str, model: str = "mock") -> str:
             ensure_ascii=False,
         )
 
+    # 1b) T2 expert-inquiry prompt -> a JSON action (ask 主症 → 舌 → 脉 → diagnose).
+    if "接诊医生" in p:
+        convo = p.rsplit("【对话】", 1)[-1]
+        if "部位" not in convo:
+            q = "请问主要不适的部位和性质如何？还有哪些伴随症状？"
+        elif "舌" not in convo:
+            q = "请问舌象如何？"
+        elif "脉" not in convo:
+            q = "请问脉象如何？"
+        else:
+            return json.dumps({"action": "diagnose", "answer": "（mock 辨证，离线占位）"}, ensure_ascii=False)
+        return json.dumps({"action": "ask", "query": q}, ensure_ascii=False)
+
     # 2) STAGER evaluation prompt -> structured answer block.
     if ("[Answer]" in p) or ("答案选择" in p):
+        # Label-aware: answer the first option label (A–D / 甲乙丙丁 / 1–4) that
+        # appears in the question block (after "题目:"), so option-order / symbol
+        # perturbation demos run coherently offline.
+        tail = p.rsplit("题目", 1)[-1] if "题目" in p else p
+        lm = re.search(r"(?m)^\s*([A-D甲乙丙丁戊己1-6])[).、．。:：]\s*\S", tail)
+        label = lm.group(1) if lm else "A"
         return (
-            "1. 答案选择\n   - [Answer] A\n"
+            f"1. 答案选择\n   - [Answer] {label}\n"
             "2. 详细分析\n   - [Analysis]\n"
             "     · 理论依据: （mock）依据脏腑辨证。\n"
             "     · 关键要点: 抓主症、辨病位病性。\n"
