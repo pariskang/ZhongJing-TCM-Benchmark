@@ -135,10 +135,14 @@ For a one-click cloud run, open the notebook in Google Colab:
 [`notebooks/colab_minimax_generation.ipynb`](notebooks/colab_minimax_generation.ipynb)
 drives the full M1→M9 pipeline with MiniMax concurrency, a live progress bar and
 checkpoint/resume (persisted to Google Drive across runtime disconnects). Step 4
-exposes `MAX_TOKENS` (default 8192), `MAX_CONCURRENCY` and the model name; step 6
-reads `.txt`, `.html` and `.docx` documents straight from a Google Drive folder
+exposes `MAX_TOKENS` (default 8192), `MAX_CONCURRENCY`, the model name and
+`LANGUAGE` (default 简体中文); step 6 reads `.txt`, `.html` and `.docx` documents
+straight from a Google Drive folder
 (e.g. `/content/drive/MyDrive/zhongjing-tcm-benchmark/yichengyoudao`) and parses
-messy filenames such as `[公众号] - 2023-03-10 标题.docx` automatically.
+messy filenames such as `[公众号] - 2023-03-10 标题.docx` automatically. **Step 12**
+then runs the whole clinical-evaluation framework (T0–T6 / L1–L4 + invariance,
+abstention, calibration, heterogeneous judges) with one click — free via the mock
+provider by default, or on the real model over the demo sets.
 
 ### Load the generated questions
 
