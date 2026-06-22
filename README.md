@@ -69,11 +69,15 @@ The dataset covers 9 major TCM domains:
 
 ## Usage
 
+New to the repo? [`docs/RUNNING_REAL_MODELS.md`](docs/RUNNING_REAL_MODELS.md) is
+the copy-paste guide for switching from the offline mock to a real LLM endpoint
+(OpenAI / MiniMax / any OpenAI-compatible server) and feeding in your own corpus.
+
 ### Run the pipeline
 
 ```bash
 make install                            # dependencies (see requirements.txt)
-make test                               # 54 unit tests, fully offline
+make test                               # 144 unit tests, fully offline
 ZHONGJING_LLM_PROVIDER=mock make demo   # run M1→M7 with the offline mock LLM
 
 # real generation / evaluation

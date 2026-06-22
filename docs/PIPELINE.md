@@ -18,7 +18,7 @@ benchmark (questions + evaluation + statistics).
 
 ```bash
 make install                      # pip install -r requirements.txt
-make test                         # 54 unit tests (offline, mock LLM)
+make test                         # 144 unit tests (offline, mock LLM)
 ZHONGJING_LLM_PROVIDER=mock make demo   # run M1->M7 fully offline
 ```
 

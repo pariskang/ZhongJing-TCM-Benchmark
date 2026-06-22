@@ -182,5 +182,10 @@ F. Controls: judge meta-eval, perturbation battery, abstention calibration,
 implemented.** Remaining extensions: real physician-authored rubrics & patient
 simulators, private held-out sets, and richer tool environments.
 
+To actually run any of these tiers against a real model or your own cases, see
+the hands-on guide [`RUNNING_REAL_MODELS.md`](RUNNING_REAL_MODELS.md) — it maps
+each `run.py` command to the data it consumes and shows how to swap a built-in
+demo set for expert-authored cases.
+
 Contributions are welcome against any roadmap item; open an issue referencing
 the tier/layer and the admission checklist above.
