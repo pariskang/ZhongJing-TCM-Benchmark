@@ -47,7 +47,7 @@ endless probing), **action validity** (no tool-grounding hallucination),
 | **T3** | Tool-use agent | order test / retrieve / check contraindication; tool-grounding | ✅ `src/t3_tools.py` — deterministic 十八反/十九畏 + dose checkers, a call→result agent loop, and **tool-grounding contradiction detection** (answer vs observed tool result); `run.py tools` |
 | **T4** | Longitudinal episode (follow-up) | adjust plan from outcome feedback; trajectory consistency | ✅ `src/t4_longitudinal.py` — outcome-dependent evolution (wrong Tx → 入里化热), per-visit + trajectory scoring (resolution / adverse transitions / adjustment recall / clean resolution); `run.py episode` |
 | **T5** | Multi-agent / MDT | collaboration, disagreement resolution, escalation | ✅ `src/t5_mdt.py` — specialty panel, confidence-weighted majority / chair aggregation, **group-vs-individual** (correct vs amplify), disagreement + red-flag recall; `run.py mdt` |
-| **T6** | Open rubric dialogue | communication, empathy, safety, completeness | ⬜ planned (HealthBench-style) |
+| **T6** | Open rubric dialogue | communication, empathy, safety, completeness | ✅ `src/t6_dialogue.py` — multi-turn transcript graded by a consensus-filtered, axis-tagged rubric (reuses L3/L4), with a hard subset; `run.py dialogue` |
 
 A serious benchmark places items at several tiers; T0 today, T1 strengthened by
 v5, T2–T6 are the roadmap below.
@@ -95,8 +95,10 @@ weakest here.
 - **Judge reliability:** meta-evaluate the grader against physician labels
   (κ/concordance). ✅ `l3l4_rubric.meta_evaluate` (the demo keyword judge scores
   κ≈0.83 vs physician labels — i.e. *not* 1.0, which is exactly why judges must be
-  validated). Heterogeneous / tool-grounded judges to mitigate shared blind
-  spots ⬜.
+  validated). Heterogeneous / tool-grounded judges to mitigate shared blind spots
+  ✅ `src/judges.py` — a tool-grounded judge catches a 附子+半夏 contraindication the
+  keyword judge misses; `judge_agreement` flags same-source spurious agreement;
+  `run.py judges`.
 - **Robustness battery:** **option-order & label-symbol invariance** ✅
   (`m8_evaluate.evaluate_invariance` / `run.py invariance` — shuffle + A–D↔甲乙丙丁
   /1–4, reports accuracy drop & content-level consistency); bias injection +
@@ -104,7 +106,10 @@ weakest here.
 - **Abstention calibration:** A@D, premature-closure rate, missing-premise
   abstention. ✅ `src/abstention.py` — reuses the M8 refusal detector to score
   abstention precision/recall (= A@D)/F1 on missing-premise items + the
-  over-abstention rate on answerable ones; `run.py abstain`. ECE/reliability ⬜.
+  over-abstention rate on answerable ones; `run.py abstain`.
+- **Confidence calibration:** ✅ `src/calibration.py` — ECE / Brier / reliability
+  bins from elicited answer+confidence (the over-confident mock scores ECE≈0.4);
+  `run.py calibrate`.
 - **Contamination:** new-vs-old case performance gap, private held-out, dynamic
   injection. 🟡 (synthetic-only release + MinHash de-dup already defend leakage)
 - **Dual signal:** always collect end-to-end **and** step-level signals. ⬜
@@ -165,8 +170,17 @@ F. Controls: judge meta-eval, perturbation battery, abstention calibration,
 - [x] **T5 MDT multi-agent (`src/t5_mdt.py`).** Specialty panel + aggregation,
   group-vs-individual (corrected vs amplified), disagreement & red-flag recall.
   `run.py mdt`.
-- [ ] **T6** (open rubric dialogue — multi-turn HealthBench-style), ECE/reliability
-  calibration, and heterogeneous/tool-grounded judges.
+- [x] **T6 open rubric dialogue (`src/t6_dialogue.py`).** Multi-turn transcript ×
+  consensus-filtered axis rubric + hard subset. `run.py dialogue`.
+- [x] **Confidence calibration (`src/calibration.py`).** ECE / Brier / reliability
+  bins. `run.py calibrate`.
+- [x] **Heterogeneous / tool-grounded judges (`src/judges.py`).** Tool-grounded
+  override + ensemble + judge-vs-judge agreement. `run.py judges`.
+
+**The T0–T6 ladder and all four scoring layers, plus the measurement controls
+(invariance, abstention, calibration, judge meta-eval & tool-grounding), are now
+implemented.** Remaining extensions: real physician-authored rubrics & patient
+simulators, private held-out sets, and richer tool environments.
 
 Contributions are welcome against any roadmap item; open an issue referencing
 the tier/layer and the admission checklist above.

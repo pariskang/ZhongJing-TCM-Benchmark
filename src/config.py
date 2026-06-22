@@ -112,6 +112,8 @@ DEFAULT_CONFIG: dict = {
         "rubric_grade": "prompts/rubric_grade.txt",
         "tool_agent": "prompts/tool_agent.txt",
         "mdt_agent": "prompts/mdt_agent.txt",
+        "dialogue": "prompts/dialogue.txt",
+        "confidence_eval": "prompts/confidence_eval.txt",
     },
     "ingest": {
         "min_chars": 100,

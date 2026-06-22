@@ -27,6 +27,8 @@ prompts:
   rubric_grade: prompts/rubric_grade.txt        # L3/L4 rubric grading judge
   tool_agent: prompts/tool_agent.txt            # T3 tool-use agent
   mdt_agent: prompts/mdt_agent.txt              # T5 MDT specialty agent
+  dialogue: prompts/dialogue.txt                # T6 multi-turn dialogue responder
+  confidence_eval: prompts/confidence_eval.txt  # confidence calibration (ECE)
 
 # ---- M1 ingest -------------------------------------------------------------
 ingest:

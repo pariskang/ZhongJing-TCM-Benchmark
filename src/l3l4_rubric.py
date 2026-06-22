@@ -36,6 +36,7 @@ class RubricItem(BaseModel):
     weight: float = 1.0             # clinical importance
     polarity: str = "positive"      # "positive" (reward if met) | "negative" (penalise if met)
     probe: Optional[str] = None     # keyword used by the offline/baseline judge
+    consensus: Optional[int] = None  # #physicians who endorsed this item (HealthBench consensus)
 
 
 class Rubric(BaseModel):

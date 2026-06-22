@@ -92,6 +92,9 @@ python run.py abstain --model gpt-4o       # A@D abstention probes (abstain iff 
 python run.py tools --model gpt-4o         # T3 tool-use agent (contraindication checks; tool-grounding)
 python run.py episode --model gpt-4o       # T4 longitudinal episode (follow-up & adjustment; 同病异治 trajectory)
 python run.py mdt --model gpt-4o           # T5 multi-agent MDT (collaboration, disagreement, group-vs-individual)
+python run.py dialogue --model gpt-4o      # T6 multi-turn rubric dialogue (consensus rubric, hard subset)
+python run.py calibrate --model gpt-4o     # confidence calibration (ECE / Brier / reliability bins)
+python run.py judges --model gpt-4o        # heterogeneous / tool-grounded judging (breaks shared blind spots)
 ```
 
 ### Batch generation with MiniMax (concurrent + resumable)

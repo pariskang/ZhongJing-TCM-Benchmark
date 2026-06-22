@@ -188,6 +188,30 @@ def mdt(model: str = typer.Option("mock", help="Base model for the specialty pan
 
 
 @app.command()
+def dialogue(model: str = typer.Option("mock", help="Model under test.")) -> None:
+    """T6 — open-ended multi-turn rubric dialogue (consensus rubric, hard subset)."""
+    import t6_dialogue
+
+    t6_dialogue.run(model=model)
+
+
+@app.command()
+def calibrate(model: str = typer.Option("mock", help="Model under test.")) -> None:
+    """Confidence calibration — ECE / Brier / reliability bins."""
+    import calibration
+
+    calibration.run(model=model)
+
+
+@app.command()
+def judges(model: str = typer.Option("mock", help="Base solver/judge model.")) -> None:
+    """Heterogeneous / tool-grounded judging — break shared blind spots."""
+    import judges as _judges
+
+    _judges.run(model=model)
+
+
+@app.command()
 def stats() -> None:
     """M9 — ANOVA + Tukey + regression + DP token segmentation."""
     import m9_stats

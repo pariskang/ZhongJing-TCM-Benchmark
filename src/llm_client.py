@@ -412,6 +412,13 @@ def mock_completion(prompt: str, model: str = "mock") -> str:
             return json.dumps({"action": "diagnose", "answer": "（mock 辨证，离线占位）"}, ensure_ascii=False)
         return json.dumps({"action": "ask", "query": q}, ensure_ascii=False)
 
+    # 0b) Confidence-elicitation prompt -> first option label + an over-confident 0.9.
+    if ("置信度" in p) and ('"answer"' in p):
+        tail = p.rsplit("题目", 1)[-1] if "题目" in p else p
+        lm = re.search(r"(?m)^\s*([A-D甲乙丙丁戊己1-6])[).、．。:：]\s*\S", tail)
+        label = lm.group(1) if lm else "A"
+        return json.dumps({"answer": [label], "confidence": 0.9}, ensure_ascii=False)
+
     # 0c) T5 MDT specialty agent -> vote the first option label (homogeneous panel).
     if "多学科会诊" in p:
         tail = p.rsplit("选项", 1)[-1] if "选项" in p else p
