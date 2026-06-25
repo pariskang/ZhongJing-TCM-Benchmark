@@ -73,7 +73,41 @@ For a one-click cloud run, [`notebooks/colab_minimax_generation.ipynb`](../noteb
 drives the full pipeline with MiniMax concurrency, a live progress bar and
 Drive-persisted checkpoint/resume.
 
-### 1c. Tuning knobs (`llm` section of `configs/pipeline.yaml`)
+### 1c. Azure OpenAI (built-in)
+
+Azure's **v1** endpoint (`https://<resource>.openai.azure.com/openai/v1`) is
+OpenAI-compatible — a plain `OpenAI` client with `base_url` + `api_key`, no
+`api-version` query string. It's wired in like MiniMax:
+
+```bash
+export AZURE_API_KEY=...
+export AZURE_BASE_URL=https://fosterpearson-ft-5186-resource.openai.azure.com/openai/v1
+export ZHONGJING_LLM_PROVIDER=azure
+python run.py generate --concurrency 8 --model Kimi-K2.6   # default generator
+```
+
+When `provider=azure`, `__init__` auto-fills:
+
+| setting | value | override with |
+|---|---|---|
+| base URL | the `fosterpearson-ft-5186` resource `/openai/v1` URL | `AZURE_BASE_URL` |
+| API key env | `AZURE_API_KEY` | — |
+| default model | `Kimi-K2.6` | `AZURE_MODEL` or `--model` |
+
+Models map to Azure **deployment names**: `Kimi-K2.6` is the default question
+generator (M2/M5); `o4-mini`, `Phi-4-reasoning`, `grok-4-20-reasoning`,
+`DeepSeek-V3.2`, `Mistral-Large-3`, `Kimi-K2.5` (and `Kimi-K2.6` itself) are the
+test models under `evaluate.models` (M8).
+
+**Reasoning deployments** (`o4-mini`, `Phi-4-reasoning`, `grok-*-reasoning`)
+reject a custom `temperature` and require `max_completion_tokens` instead of
+`max_tokens`. The client detects these on the first failed call, caches the quirk
+per model, and retries — so no per-model config is needed.
+
+For a one-click cloud run, [`notebooks/colab_azure_generation.ipynb`](../notebooks/colab_azure_generation.ipynb)
+generates with `Kimi-K2.6` and then evaluates every test model.
+
+### 1d. Tuning knobs (`llm` section of `configs/pipeline.yaml`)
 
 | key | default | what it controls |
 |---|---|---|
