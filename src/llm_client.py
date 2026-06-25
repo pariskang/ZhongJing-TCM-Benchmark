@@ -11,6 +11,13 @@ Providers
 * ``minimax`` — MiniMax's OpenAI-compatible endpoint
   (``https://api.minimaxi.com/v1``).  Reuses the OpenAI SDK; reads the key from
   ``MINIMAX_API_KEY`` and defaults the model to ``MiniMax-M3``.
+* ``azure``   — Azure OpenAI's v1 (OpenAI-compatible) endpoint, e.g.
+  ``https://<resource>.openai.azure.com/openai/v1``.  Reuses the OpenAI SDK;
+  reads the key from ``AZURE_API_KEY`` / the endpoint from ``AZURE_BASE_URL`` and
+  defaults the model (deployment name) to ``Kimi-K2.6``.  Reasoning deployments
+  (o4-mini, Phi-4-reasoning, grok-*-reasoning, …) that reject ``temperature`` or
+  require ``max_completion_tokens`` are handled transparently (see
+  ``_call_openai``).
 * ``mock``    — fully offline, deterministic.  Returns schema-valid JSON for the
   question-generation / quality-judge / STAGER prompts so the whole pipeline can
   be exercised (and unit-tested) without API keys or network.
@@ -185,6 +192,20 @@ class LLMClient:
             )
             if default_model == "gpt-4o":
                 default_model = os.environ.get("MINIMAX_MODEL", "MiniMax-M3")
+        elif self.provider == "azure":
+            # Azure OpenAI v1 endpoint is OpenAI-compatible: a plain OpenAI client
+            # with base_url=".../openai/v1" and api_key=<key> (no api-version dance).
+            self.base_url = (
+                base_url
+                or os.environ.get("AZURE_BASE_URL")
+                or os.environ.get("AZURE_OPENAI_BASE_URL")
+                or "https://fosterpearson-ft-5186-resource.openai.azure.com/openai/v1"
+            )
+            self.api_key_env = (
+                "AZURE_API_KEY" if api_key_env == "OPENAI_API_KEY" else api_key_env
+            )
+            if default_model == "gpt-4o":
+                default_model = os.environ.get("AZURE_MODEL", "Kimi-K2.6")
         else:
             self.base_url = base_url or os.environ.get("OPENAI_BASE_URL")
             self.api_key_env = api_key_env
@@ -198,6 +219,9 @@ class LLMClient:
         )
         self._cache = _make_cache(cache_dir) if use_cache else None
         self._openai_client = None  # lazily created
+        # Per-model parameter quirks learned at runtime (Azure reasoning models):
+        #   {"no_temperature": bool, "use_max_completion_tokens": bool}
+        self._param_quirks: dict[str, dict] = {}
 
     # -- provider resolution ------------------------------------------------- #
     def _resolve_provider(self, model: str) -> str:
@@ -239,9 +263,9 @@ class LLMClient:
 
         if provider == "mock":
             text = mock_completion(prompt, model)
-        elif provider in ("openai", "minimax"):
-            # MiniMax is OpenAI-compatible; base_url / api_key_env already point
-            # at the right endpoint (set in __init__).
+        elif provider in ("openai", "minimax", "azure"):
+            # MiniMax and Azure (v1) are OpenAI-compatible; base_url / api_key_env
+            # already point at the right endpoint (set in __init__).
             text = self._call_openai(prompt, model, system, temperature, max_tokens)
         else:
             raise ValueError(f"Unknown LLM provider: {provider!r}")
@@ -289,14 +313,42 @@ class LLMClient:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
+        quirks = self._param_quirks.setdefault(model, {})
+
+        def _build_kwargs() -> dict:
+            kw: dict[str, Any] = {"model": model, "messages": messages}
+            # Reasoning deployments (o4-mini, Phi-4-reasoning, grok-*-reasoning, …)
+            # only accept the default temperature; omit it for them.
+            if not quirks.get("no_temperature"):
+                kw["temperature"] = temperature
+            # Same models renamed the output cap to `max_completion_tokens`.
+            if quirks.get("use_max_completion_tokens"):
+                kw["max_completion_tokens"] = max_tokens
+            else:
+                kw["max_tokens"] = max_tokens
+            return kw
+
         def _do():
-            resp = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
-            return resp.choices[0].message.content or ""
+            # Try the full call; on a parameter-unsupported error, learn the quirk
+            # (cached on the client so later calls skip the failed attempt) and retry.
+            for _ in range(3):
+                try:
+                    resp = client.chat.completions.create(**_build_kwargs())
+                    return resp.choices[0].message.content or ""
+                except Exception as exc:  # noqa: BLE001
+                    msg = str(exc).lower()
+                    learned = False
+                    if ("max_completion_tokens" in msg or "max_tokens" in msg) and not quirks.get(
+                        "use_max_completion_tokens"
+                    ):
+                        quirks["use_max_completion_tokens"] = True
+                        learned = True
+                    if "temperature" in msg and not quirks.get("no_temperature"):
+                        quirks["no_temperature"] = True
+                        learned = True
+                    if not learned:
+                        raise
+            return client.chat.completions.create(**_build_kwargs()).choices[0].message.content or ""
 
         return _retry(_do)
 

@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![arXiv](https://img.shields.io/badge/arXiv-2024.XXXXX-b31b1b.svg)](https://arxiv.org/abs/)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pariskang/ZhongJing-TCM-Benchmark/blob/main/notebooks/colab_minimax_generation.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pariskang/ZhongJing-TCM-Benchmark/blob/main/notebooks/colab_azure_generation.ipynb)
 
 A comprehensive benchmark dataset for evaluating Traditional Chinese Medicine (TCM) common sense knowledge in Large Language Models.
 
@@ -101,9 +101,22 @@ python run.py calibrate --model gpt-4o     # confidence calibration (ECE / Brier
 python run.py judges --model gpt-4o        # heterogeneous / tool-grounded judging (breaks shared blind spots)
 ```
 
-### Batch generation with MiniMax (concurrent + resumable)
+### Batch generation with Azure / MiniMax (concurrent + resumable)
 
-MiniMax's OpenAI-compatible endpoint is supported out of the box:
+Azure OpenAI's **v1** endpoint is OpenAI-compatible and wired in out of the box —
+`Kimi-K2.6` is the default question generator, the rest are test models:
+
+```bash
+export AZURE_API_KEY=...                             # Azure resource key
+export AZURE_BASE_URL=https://fosterpearson-ft-5186-resource.openai.azure.com/openai/v1
+export ZHONGJING_LLM_PROVIDER=azure
+python run.py generate --concurrency 8 --model Kimi-K2.6   # default generator
+python run.py evaluate                               # over evaluate.models (o4-mini, DeepSeek-V3.2, …)
+```
+
+Reasoning deployments (`o4-mini`, `Phi-4-reasoning`, `grok-4-20-reasoning`) that
+reject `temperature` / need `max_completion_tokens` are handled automatically.
+MiniMax's OpenAI-compatible endpoint is likewise supported:
 
 ```bash
 export MINIMAX_API_KEY=...                          # https://api.minimaxi.com/v1
@@ -130,12 +143,13 @@ this and the language is read from `generate.language: 简体中文` in
 
 For a one-click cloud run, open the notebook in Google Colab:
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pariskang/ZhongJing-TCM-Benchmark/blob/main/notebooks/colab_minimax_generation.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/pariskang/ZhongJing-TCM-Benchmark/blob/main/notebooks/colab_azure_generation.ipynb)
 
-[`notebooks/colab_minimax_generation.ipynb`](notebooks/colab_minimax_generation.ipynb)
-drives the full M1→M9 pipeline with MiniMax concurrency, a live progress bar and
-checkpoint/resume (persisted to Google Drive across runtime disconnects). Step 4
-exposes `MAX_TOKENS` (default 8192), `MAX_CONCURRENCY`, the model name and
+[`notebooks/colab_azure_generation.ipynb`](notebooks/colab_azure_generation.ipynb)
+drives the full M1→M9 pipeline on Azure (generate with `Kimi-K2.6`, then evaluate
+every test model) with concurrency, a live progress bar and checkpoint/resume
+(persisted to Google Drive across runtime disconnects). Step 4
+exposes `MAX_TOKENS` (default 8192), `MAX_CONCURRENCY`, `GEN_MODEL`/`TEST_MODELS` and
 `LANGUAGE` (default 简体中文); step 6 reads `.txt`, `.html` and `.docx` documents
 straight from a Google Drive folder
 (e.g. `/content/drive/MyDrive/zhongjing-tcm-benchmark/yichengyoudao`) and parses
