@@ -78,6 +78,38 @@ models:
     chat_template: "{% for m in messages %}{% if m['role'] == 'system' %}{{ m['content'] }}\n{% elif m['role'] == 'user' %}<病人>：{{ m['content'] }}\n{% elif m['role'] == 'assistant' %}<HuatuoGPT>：{{ m['content'] }}\n{% endif %}{% endfor %}{% if add_generation_prompt %}<HuatuoGPT>：{% endif %}"
     notes: "Repo is 'HuatuoGPT2' (no hyphen-II). Variants: -13B, -34B."
 
+  BianCang:
+    repo: QLU-NLP/BianCang-Qwen2.5-7B-Instruct
+    params: 7B
+    base: Qwen2.5-7B
+    lang: chinese
+    quant: none
+    dtype: bfloat16
+    trust_remote_code: false
+    notes: "扁仓 TCM model; standard Qwen2.5 ChatML. -14B-Instruct / Qwen2 variants exist."
+
+  BioMistral:
+    repo: BioMistral/BioMistral-7B
+    params: 7B
+    base: Mistral-7B-Instruct-v0.1
+    lang: english
+    quant: none
+    dtype: bfloat16
+    trust_remote_code: false
+    no_system: true   # Mistral [INST] template has no system role + strict alternation
+    notes: "PubMed-pretrained Mistral; [INST] format."
+
+  # ---- MoE (30B total / ~3B active — 4-bit fits A100-40GB; needs Qwen3 stack) -
+  CMLM-Dao1:
+    repo: CMLM/Dao1-30b-a3b
+    params: MoE 30B-A3B
+    base: Qwen3-30B-A3B
+    lang: bilingual
+    quant: 4bit
+    dtype: bfloat16
+    trust_remote_code: false
+    notes: "Qwen3-MoE ChatML; needs transformers/vLLM with qwen3_moe support (>=4.51)."
+
   # ---- 13–14B (4-bit on L4; bf16/4-bit on A100) ------------------------------
   DISC-MedLLM:
     repo: Flmc/DISC-MedLLM
@@ -160,6 +192,22 @@ models:
     trust_remote_code: false
     notes: "Large — ~40GB+ at 4-bit weights; A100-80GB/multi-GPU. Qwen-72B variant: jdh-algo/Citrus1.0-Qwen-72B."
 
+  Meditron-70B:
+    repo: epfl-llm/meditron-70b
+    params: 70B
+    base: Llama-2-70B
+    lang: english
+    gated: true
+    quant: 4bit
+    dtype: bfloat16
+    trust_remote_code: false
+    no_system: true
+    # Base (NOT instruction-tuned) — ships no chat template; coax with Llama-2 [INST].
+    chat_template: "{% for m in messages %}{% if m['role'] == 'user' %}[INST] {{ m['content'] }} [/INST]{% elif m['role'] == 'assistant' %} {{ m['content'] }}{% endif %}{% endfor %}"
+    notes: "GATED (Llama-2 license) — needs HF_TOKEN. Base/completion model; instruction-following is weak. epfl-llm/meditron-7b is the small variant."
+
   # ---- not available as a text model on HuggingFace --------------------------
   # Qilin-Med: the text LLM (Baichuan-7B base) is GitHub-only — no HF weights.
   #   Only a LLaVA vision variant exists (williamliu/Qilin-Med-VL-Chat). Excluded.
+  # Qibo (arXiv 2403.16056, Chinese-LLaMA TCM): no public HF weights repo found
+  #   (paper-only release). Excluded — add an entry here if a repo id is published.
