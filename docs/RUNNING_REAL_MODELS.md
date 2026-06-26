@@ -107,6 +107,40 @@ per model, and retries — so no per-model config is needed.
 For a one-click cloud run, [`notebooks/colab_azure_generation.ipynb`](../notebooks/colab_azure_generation.ipynb)
 generates with `Kimi-K2.6` and then evaluates every test model.
 
+### 1c-bis. Local HuggingFace models (`provider: local`)
+
+To evaluate open-weight medical/TCM models (HuatuoGPT-II/o1, Baichuan-M1/M2,
+DeepSeek-R1-32B, Taiyi, DISC-MedLLM, Aquila-Med, Lingshu, MedGemma, Citrus,
+ClinicalGPT-R1, …) with in-process `transformers` inference:
+
+```bash
+export ZHONGJING_LLM_PROVIDER=local
+export HF_TOKEN=...                 # only for gated repos (Baichuan-M1, MedGemma)
+python run.py evaluate             # over evaluate.models, looked up in the registry
+```
+
+Friendly names map to repo ids + loading options in
+[`configs/hf_models.yaml`](../configs/hf_models.yaml). The client holds **one
+model in GPU memory at a time**: the evaluator iterates models sequentially, and
+each switch frees the previous weights before loading the next. Per-model options:
+
+| key | meaning |
+|---|---|
+| `repo` | HuggingFace repo id |
+| `quant` | `none` / `4bit` / `8bit` (bitsandbytes); env override `HF_QUANT` |
+| `dtype` | `bfloat16` / `float16`; env override `HF_DTYPE` |
+| `trust_remote_code` | custom architectures (Baichuan, Aquila, Taiyi, …); env `HF_TRUST_REMOTE_CODE` |
+| `loader: vl` | multimodal (Qwen2.5-VL / Gemma3) — driven **text-only** via `AutoProcessor` |
+| `chat_template` | Jinja fallback for tokenizers that ship none (Taiyi, HuatuoGPT-II) |
+| `template_kwargs` | extra `apply_chat_template` kwargs (e.g. Baichuan-M2 `thinking_mode`) |
+| `no_system` + `think_prefix` | R1-style: fold system into user, seed `<think>\n` |
+
+Add a model by appending one entry to the YAML — no code change. Gated repos need
+an `HF_TOKEN` whose account has accepted the license. GPU reality: 7–8B run bf16,
+13–34B want 4-bit on a 40GB card, 70B needs 80GB / multi-GPU. The one-click run is
+[`notebooks/colab_hf_eval.ipynb`](../notebooks/colab_hf_eval.ipynb), which loads
+the Azure-generated benchmark and evaluates each selected model with VRAM rotation.
+
 ### 1d. Tuning knobs (`llm` section of `configs/pipeline.yaml`)
 
 | key | default | what it controls |

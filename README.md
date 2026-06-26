@@ -158,6 +158,19 @@ then runs the whole clinical-evaluation framework (T0–T6 / L1–L4 + invarianc
 abstention, calibration, heterogeneous judges) with one click — free via the mock
 provider by default, or on the real model over the demo sets.
 
+### Evaluate local HuggingFace medical models
+
+To benchmark open-weight medical/TCM models (HuatuoGPT-II/o1, Baichuan-M1/M2,
+DeepSeek-R1-32B, Taiyi, DISC-MedLLM, Aquila-Med, Lingshu, MedGemma, Citrus,
+ClinicalGPT-R1, …), set `provider: local` and list friendly names in
+`evaluate.models`; they resolve to repo ids + loading options in
+[`configs/hf_models.yaml`](configs/hf_models.yaml). Inference is in-process
+`transformers` with optional 4-bit quantization, multimodal models driven
+text-only, and a single GPU slot that rotates models as the evaluator iterates.
+[`notebooks/colab_hf_eval.ipynb`](notebooks/colab_hf_eval.ipynb) runs this on a
+Colab GPU against the Azure-generated benchmark. See
+[`docs/RUNNING_REAL_MODELS.md`](docs/RUNNING_REAL_MODELS.md) §1c-bis.
+
 ### Load the generated questions
 
 ```python

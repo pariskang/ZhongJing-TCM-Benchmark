@@ -1,0 +1,165 @@
+# ZhongJing-TCM benchmark — HuggingFace (local) model registry.
+#
+# Each entry maps a *friendly name* (the string you pass as the model under test,
+# e.g. in `evaluate.models`) to the loading options consumed by
+# `LLMClient._load_hf` (src/llm_client.py). Set `provider: local` to use these.
+#
+# Recognised keys (others, e.g. params/base/lang/gated/notes, are documentation):
+#   repo               HuggingFace repo id (org/name, case-sensitive)
+#   quant              none | 4bit | 8bit   (override globally with env HF_QUANT)
+#   dtype              bfloat16 | float16    (env HF_DTYPE)
+#   trust_remote_code  true/false            (env HF_TRUST_REMOTE_CODE)
+#   loader             "vl" for multimodal (Qwen2.5-VL / Gemma3) — runs text-only
+#   auto_class         transformers AutoModel class override
+#   chat_template      Jinja fallback when the tokenizer ships none (best-effort)
+#   template_kwargs    extra kwargs for apply_chat_template (e.g. thinking_mode)
+#   no_system          fold the system prompt into the user turn (R1-style)
+#   think_prefix       string appended after the prompt (e.g. "<think>\n")
+#
+# Quant defaults target a single A100-40GB. On L4-24GB raise quantization
+# (env HF_QUANT=4bit) and prefer the 7–8B models. 70B needs A100-80GB / multi-GPU.
+# Gated repos (Baichuan-M1, MedGemma) require accepting the license on HF and an
+# HF_TOKEN with access. Prompt fidelity for models with custom formats
+# (HuatuoGPT-II, Taiyi, DISC-MedLLM) is best-effort via the fallback templates.
+
+models:
+  # ---- 7–8B (fit bf16 on A100/L4) --------------------------------------------
+  HuatuoGPT-o1:
+    repo: FreedomIntelligence/HuatuoGPT-o1-7B
+    params: 7B
+    base: Qwen2.5-7B-Instruct
+    lang: bilingual
+    quant: none
+    dtype: bfloat16
+    trust_remote_code: false
+    notes: "Medical reasoning; outputs '## Thinking … ## Final Response …'."
+
+  ClinicalGPT-R1:
+    repo: medicalai/ClinicalGPT-R1-Qwen-7B-EN-preview
+    params: 7B
+    base: Qwen2.5-7B-Instruct
+    lang: english
+    quant: none
+    dtype: bfloat16
+    trust_remote_code: false
+    notes: "Clinical reasoning (EN preview). Qwen2.5 ChatML template."
+
+  Aquila-Med:
+    repo: BAAI/AquilaMed-RL
+    params: 8B
+    base: Aquila (Qwen tokenizer)
+    lang: chinese
+    quant: none
+    dtype: bfloat16
+    trust_remote_code: true
+    notes: "ChatML format; RL checkpoint."
+
+  Taiyi:
+    repo: DUTIR-BioNLP/Taiyi-LLM
+    params: 7B
+    base: Qwen-7B (v1)
+    lang: bilingual
+    quant: none
+    dtype: float16
+    trust_remote_code: true
+    # Tokenizer ships no standard chat_template — best-effort ChatML fallback.
+    chat_template: "{% for m in messages %}<|im_start|>{{ m['role'] }}\n{{ m['content'] }}<|im_end|>\n{% endfor %}{% if add_generation_prompt %}<|im_start|>assistant\n{% endif %}"
+    notes: "Qwen-v1 custom arch; biomedical bilingual."
+
+  HuatuoGPT-II:
+    repo: FreedomIntelligence/HuatuoGPT2-7B
+    params: 7B
+    base: Baichuan2-7B-Base
+    lang: chinese
+    quant: none
+    dtype: bfloat16
+    trust_remote_code: true
+    # Ships a custom HuatuoChat() method, no standard template — fallback below.
+    chat_template: "{% for m in messages %}{% if m['role'] == 'system' %}{{ m['content'] }}\n{% elif m['role'] == 'user' %}<病人>：{{ m['content'] }}\n{% elif m['role'] == 'assistant' %}<HuatuoGPT>：{{ m['content'] }}\n{% endif %}{% endfor %}{% if add_generation_prompt %}<HuatuoGPT>：{% endif %}"
+    notes: "Repo is 'HuatuoGPT2' (no hyphen-II). Variants: -13B, -34B."
+
+  # ---- 13–14B (4-bit on L4; bf16/4-bit on A100) ------------------------------
+  DISC-MedLLM:
+    repo: Flmc/DISC-MedLLM
+    params: 13B
+    base: Baichuan-13B-Base
+    lang: chinese
+    quant: 4bit
+    dtype: float16
+    trust_remote_code: true
+    notes: "Baichuan token-id chat format; uses tokenizer template if present."
+
+  Baichuan-M1:
+    repo: baichuan-inc/Baichuan-M1-14B-Instruct
+    params: 14B
+    base: trained from scratch
+    lang: bilingual
+    gated: true
+    quant: 4bit
+    dtype: bfloat16
+    trust_remote_code: true
+    notes: "GATED — accept the community license on HF; needs HF_TOKEN. transformers>=4.47."
+
+  # ---- 27–34B (4-bit on A100-40GB) -------------------------------------------
+  DeepSeek-R1-32B:
+    repo: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+    params: 32B
+    base: Qwen2.5-32B
+    lang: bilingual
+    quant: 4bit
+    dtype: bfloat16
+    trust_remote_code: false
+    no_system: true
+    think_prefix: "<think>\n"
+    notes: "R1-style. Recommended temperature ~0.6; no system prompt."
+
+  Baichuan-M2:
+    repo: baichuan-inc/Baichuan-M2-32B
+    params: 32B
+    base: Qwen2.5-32B
+    lang: bilingual
+    quant: 4bit
+    dtype: bfloat16
+    trust_remote_code: true
+    template_kwargs:
+      thinking_mode: "on"   # on | off | auto  (Baichuan-M2-specific kwarg)
+    notes: "GPTQ-Int4 variant also exists: baichuan-inc/Baichuan-M2-32B-GPTQ-Int4."
+
+  # ---- multimodal (run text-only via the VL processor) -----------------------
+  Lingshu:
+    repo: lingshu-medical-mllm/Lingshu-7B
+    params: 7B
+    base: Qwen2.5-VL-7B
+    lang: bilingual
+    loader: vl
+    quant: none
+    dtype: bfloat16
+    trust_remote_code: true
+    notes: "Multimodal (Qwen2.5-VL); driven text-only here. -32B variant exists."
+
+  google/medgemma-27b-it:
+    repo: google/medgemma-27b-it
+    params: 27B
+    base: Gemma-3-27B
+    lang: english
+    gated: true
+    loader: vl
+    quant: 4bit
+    dtype: bfloat16
+    trust_remote_code: false
+    notes: "GATED (HAI-DEF license) — needs HF_TOKEN. Multimodal Gemma3; transformers>=4.50. medgemma-4b-it is the small variant."
+
+  # ---- 70B (needs A100-80GB / multi-GPU even at 4-bit) -----------------------
+  Citrus:
+    repo: jdh-algo/Citrus1.0-llama-70B
+    params: 70B
+    base: Llama-3.1-70B
+    lang: bilingual
+    quant: 4bit
+    dtype: bfloat16
+    trust_remote_code: false
+    notes: "Large — ~40GB+ at 4-bit weights; A100-80GB/multi-GPU. Qwen-72B variant: jdh-algo/Citrus1.0-Qwen-72B."
+
+  # ---- not available as a text model on HuggingFace --------------------------
+  # Qilin-Med: the text LLM (Baichuan-7B base) is GitHub-only — no HF weights.
+  #   Only a LLaVA vision variant exists (williamliu/Qilin-Med-VL-Chat). Excluded.

@@ -157,6 +157,46 @@ def _retry(fn: Callable, *, attempts: int = 5, base_delay: float = 2.0):
 
 
 # --------------------------------------------------------------------------- #
+# Local / HuggingFace model registry                                            #
+# --------------------------------------------------------------------------- #
+
+# Maps a friendly model name (the string passed as ``model=`` to ``call_text``)
+# to per-model loading options consumed by ``LLMClient._load_hf``. Populated from
+# ``configs/hf_models.yaml`` via :func:`register_local_models`; the Colab/notebook
+# can also extend it at runtime. Recognised keys per entry:
+#   repo, quant, dtype, trust_remote_code, loader ("vl"), auto_class,
+#   chat_template, template_kwargs, no_system, think_prefix.
+LOCAL_MODEL_OPTS: dict[str, dict] = {}
+
+
+def register_local_models(mapping: dict) -> None:
+    """Merge *mapping* (friendly name -> options dict) into ``LOCAL_MODEL_OPTS``."""
+    for name, opts in (mapping or {}).items():
+        if isinstance(opts, dict):
+            LOCAL_MODEL_OPTS[name] = dict(opts)
+
+
+def load_local_registry(path: Optional[str] = None) -> dict:
+    """Load the HF model registry YAML into ``LOCAL_MODEL_OPTS`` and return it.
+
+    The file is keyed by friendly name; each value is the options dict above.
+    Missing file / PyYAML simply yields an empty registry (no hard dependency).
+    """
+    try:
+        import yaml  # type: ignore
+
+        p = path or os.environ.get(
+            "ZHONGJING_HF_REGISTRY", str(PROJECT_ROOT / "configs" / "hf_models.yaml")
+        )
+        data = yaml.safe_load(open(p, encoding="utf-8")) or {}
+        models = data.get("models", data) if isinstance(data, dict) else {}
+        register_local_models(models)
+    except Exception as exc:  # pragma: no cover - optional
+        _log.debug("local registry not loaded (%s)", exc)
+    return LOCAL_MODEL_OPTS
+
+
+# --------------------------------------------------------------------------- #
 # Client                                                                        #
 # --------------------------------------------------------------------------- #
 
@@ -222,6 +262,9 @@ class LLMClient:
         # Per-model parameter quirks learned at runtime (Azure reasoning models):
         #   {"no_temperature": bool, "use_max_completion_tokens": bool}
         self._param_quirks: dict[str, dict] = {}
+        # Single-GPU-slot cache for the local/HF backend: {"id", "model", "tok"}.
+        # Only one model is held at a time; switching models frees the previous.
+        self._hf_slot: Optional[dict] = None
 
     # -- provider resolution ------------------------------------------------- #
     def _resolve_provider(self, model: str) -> str:
@@ -267,6 +310,8 @@ class LLMClient:
             # MiniMax and Azure (v1) are OpenAI-compatible; base_url / api_key_env
             # already point at the right endpoint (set in __init__).
             text = self._call_openai(prompt, model, system, temperature, max_tokens)
+        elif provider in ("local", "hf"):
+            text = self._call_local(prompt, model, system, temperature, max_tokens)
         else:
             raise ValueError(f"Unknown LLM provider: {provider!r}")
 
@@ -351,6 +396,172 @@ class LLMClient:
             return client.chat.completions.create(**_build_kwargs()).choices[0].message.content or ""
 
         return _retry(_do)
+
+    # -- local / HuggingFace backend ----------------------------------------- #
+    def _load_hf(self, model_id: str):
+        """Load (or reuse) a local HF model in the single GPU slot.
+
+        Only one model is resident at a time: requesting a different ``model_id``
+        unloads the previous one and frees the GPU before loading the new weights.
+        Per-model loading options (quantization, ``trust_remote_code``, dtype, a
+        fallback chat template for models whose tokenizer ships none) are looked
+        up from :data:`LOCAL_MODEL_OPTS` (populated from ``configs/hf_models.yaml``
+        by the caller) and overridable via ``HF_*`` environment variables.
+        """
+        if self._hf_slot and self._hf_slot["id"] == model_id:
+            return self._hf_slot
+
+        if not LOCAL_MODEL_OPTS:  # lazily populate from configs/hf_models.yaml
+            load_local_registry()
+
+        # Evict the previous model and reclaim VRAM before loading another.
+        if self._hf_slot is not None:
+            self._hf_slot.clear()
+            self._hf_slot = None
+            try:
+                import gc
+
+                import torch  # type: ignore
+
+                gc.collect()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:  # pragma: no cover - best-effort cleanup
+                pass
+
+        import torch  # type: ignore
+        import transformers  # type: ignore
+        from transformers import AutoTokenizer  # type: ignore
+
+        opts = dict(LOCAL_MODEL_OPTS.get(model_id, {}))
+        repo = opts.get("repo", model_id)
+
+        def _envflag(name: str, default: bool) -> bool:
+            v = os.environ.get(name)
+            return default if v is None else v.strip().lower() in ("1", "true", "yes", "on")
+
+        trust = _envflag("HF_TRUST_REMOTE_CODE", bool(opts.get("trust_remote_code", True)))
+        # Quantization: HF_QUANT in {none,4bit,8bit}; default per-model (else none).
+        quant = (os.environ.get("HF_QUANT") or opts.get("quant") or "none").lower()
+        dtype_name = os.environ.get("HF_DTYPE") or opts.get("dtype") or "bfloat16"
+        dtype = getattr(torch, dtype_name, torch.bfloat16)
+        token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
+        # Multimodal models (Qwen2.5-VL / Gemma3 / …) need an image-text-to-text
+        # class + a processor; we still drive them text-only for this benchmark.
+        is_vl = str(opts.get("loader", "")).lower() in ("vl", "image-text-to-text")
+        auto_cls_name = opts.get("auto_class") or (
+            "AutoModelForImageTextToText" if is_vl else "AutoModelForCausalLM"
+        )
+        AutoModelCls = getattr(transformers, auto_cls_name)
+
+        _log.info("loading local model %s (quant=%s, dtype=%s, cls=%s)",
+                  repo, quant, dtype_name, auto_cls_name)
+        if is_vl:
+            from transformers import AutoProcessor  # type: ignore
+
+            processor = AutoProcessor.from_pretrained(repo, trust_remote_code=trust, token=token)
+            tok = getattr(processor, "tokenizer", None) or processor
+        else:
+            processor = None
+            tok = AutoTokenizer.from_pretrained(repo, trust_remote_code=trust, token=token)
+
+        model_kwargs: dict[str, Any] = {
+            "trust_remote_code": trust,
+            "device_map": os.environ.get("HF_DEVICE_MAP", "auto"),
+            "token": token,
+        }
+        if quant in ("4bit", "8bit"):
+            try:
+                from transformers import BitsAndBytesConfig  # type: ignore
+
+                if quant == "4bit":
+                    model_kwargs["quantization_config"] = BitsAndBytesConfig(
+                        load_in_4bit=True,
+                        bnb_4bit_compute_dtype=dtype,
+                        bnb_4bit_quant_type="nf4",
+                        bnb_4bit_use_double_quant=True,
+                    )
+                else:
+                    model_kwargs["quantization_config"] = BitsAndBytesConfig(load_in_8bit=True)
+            except Exception as exc:  # pragma: no cover - bitsandbytes missing
+                _log.warning("bitsandbytes unavailable (%s); loading unquantized", exc)
+                model_kwargs["torch_dtype"] = dtype
+        else:
+            model_kwargs["torch_dtype"] = dtype
+
+        model = AutoModelCls.from_pretrained(repo, **model_kwargs)
+        model.eval()
+        if getattr(tok, "pad_token_id", None) is None and getattr(tok, "eos_token_id", None) is not None:
+            tok.pad_token = tok.eos_token
+
+        self._hf_slot = {
+            "id": model_id,
+            "model": model,
+            "tok": tok,
+            "processor": processor,                       # set for VL models, else None
+            "chat_template": opts.get("chat_template"),    # fallback if tokenizer ships none
+            "no_system": bool(opts.get("no_system", False)),
+            "think_prefix": opts.get("think_prefix"),      # e.g. "<think>\n" for R1-style
+            "extra_template_kwargs": opts.get("template_kwargs") or {},  # e.g. thinking_mode
+        }
+        return self._hf_slot
+
+    def _call_local(self, prompt, model, system, temperature, max_tokens) -> str:
+        import torch  # type: ignore
+
+        slot = self._load_hf(model)
+        tok, mdl = slot["tok"], slot["model"]
+        processor = slot["processor"]
+
+        is_vl = processor is not None
+
+        def _content(s: str):
+            # VL processors (Qwen2.5-VL / Gemma3) want typed content parts even for
+            # text-only turns; plain LMs want a bare string.
+            return [{"type": "text", "text": s}] if is_vl else s
+
+        messages = []
+        if system and not slot["no_system"]:
+            messages.append({"role": "system", "content": _content(system)})
+        elif system and slot["no_system"]:
+            # R1-style: no system role — fold instructions into the user turn.
+            prompt = f"{system}\n\n{prompt}"
+        messages.append({"role": "user", "content": _content(prompt)})
+
+        # Render the prompt: prefer the tokenizer/processor chat template, fall back
+        # to a registry-supplied template, else a plain rendering.
+        if slot["chat_template"]:
+            tok.chat_template = slot["chat_template"]
+        tmpl_kwargs = dict(add_generation_prompt=True, **slot["extra_template_kwargs"])
+        try:
+            text = tok.apply_chat_template(messages, tokenize=False, **tmpl_kwargs)
+        except Exception:
+            sys_part = f"{system}\n\n" if (system and not slot["no_system"]) else ""
+            text = f"{sys_part}{prompt}\n"
+        if slot["think_prefix"]:
+            text = text + slot["think_prefix"]
+
+        def _do():
+            # VL models use their processor to tokenize (text-only here); plain LMs
+            # use the tokenizer directly.
+            enc = (processor if processor is not None else tok)(text, return_tensors="pt")
+            enc = {k: v.to(mdl.device) for k, v in enc.items() if hasattr(v, "to")}
+            in_len = enc["input_ids"].shape[1]
+            gen = {
+                "max_new_tokens": int(max_tokens),
+                "do_sample": temperature is not None and temperature > 0,
+                "pad_token_id": getattr(tok, "pad_token_id", None),
+            }
+            if gen["do_sample"]:
+                gen["temperature"] = float(temperature)
+                gen["top_p"] = float(os.environ.get("HF_TOP_P", "0.95"))
+            with torch.no_grad():
+                out = mdl.generate(**enc, **gen)
+            new_tokens = out[0][in_len:]
+            decoder = processor if processor is not None else tok
+            return decoder.decode(new_tokens, skip_special_tokens=True).strip()
+
+        return _retry(_do, attempts=2, base_delay=1.0)
 
 
 # --------------------------------------------------------------------------- #
